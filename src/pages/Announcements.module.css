@@ -1,0 +1,13 @@
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 24px; }
+@media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); transition: box-shadow 0.3s; }
+.card:hover { box-shadow: var(--shadow-md); }
+.cardTop { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.cardTitle { font-size: 1.0625rem; font-weight: 600; }
+.cardBtns { display: flex; gap: 2px; flex-shrink: 0; margin-left: 8px; }
+.cardDesc { font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
+.cardFooter { display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-light); }
+.cardFooter span { display: flex; align-items: center; gap: 4px; }
+.formFields { display: flex; flex-direction: column; gap: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 0.8125rem; font-weight: 500; color: var(--text); }

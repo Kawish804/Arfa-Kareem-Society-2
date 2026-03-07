@@ -1,0 +1,52 @@
+.container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.toast {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  animation: slideIn 0.3s ease;
+}
+
+.toast.destructive {
+  border-color: var(--destructive);
+  background: var(--destructive-light);
+}
+
+.title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.destructive .title {
+  color: var(--destructive);
+}
+
+.description {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

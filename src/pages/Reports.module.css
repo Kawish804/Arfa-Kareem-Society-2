@@ -1,0 +1,5 @@
+.header { margin-bottom: 24px; }
+.header h1 { font-size: 1.5rem; font-weight: 700; }
+.sub { font-size: 0.875rem; color: var(--text-muted); margin-top: 4px; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+@media (min-width: 1024px) { .grid { grid-template-columns: 1fr 1fr; } }
