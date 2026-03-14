@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Edit, Trash2, Eye } from 'lucide-react';
 import PageHeader from '@/components/PageHeader.jsx';
 import Button from '@/components/ui/Button.jsx';
@@ -6,14 +6,14 @@ import Input from '@/components/ui/Input.jsx';
 import Select from '@/components/ui/Select.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import Modal from '@/components/ui/Modal.jsx';
-import { members as initialMembers } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './Members.module.css';
 
 const emptyForm = { name: '', email: '', role: '', class: '' };
 
 const Members = () => {
-  const [memberList, setMemberList] = useState(initialMembers);
+  const [memberList, setMemberList] = useState([]); // Starts empty, fetches from DB
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -22,15 +22,55 @@ const Members = () => {
   const [form, setForm] = useState(emptyForm);
   const { toast } = useToast();
 
-  const roles = [...new Set(initialMembers.map(m => m.role))];
+  // FETCH APPROVED MEMBERS FROM BACKEND
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/admin/members');
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Map database fields to match your frontend table structure
+          const formattedMembers = data.map(user => ({
+            id: user._id,
+            name: user.fullName,
+            email: user.email,
+            role: user.role || 'Member',
+            class: `${user.department} - ${user.semester}`,
+            status: 'Active',
+            joinDate: new Date(user.createdAt).toISOString().split('T')[0]
+          }));
+          setMemberList(formattedMembers);
+        }
+      } catch (error) {
+        toast({ title: 'Error fetching members', variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMembers();
+  }, [toast]);
+
+  // Generate roles array dynamically, fallback to defaults if list is empty
+  const roles = memberList.length > 0 
+    ? [...new Set(memberList.map(m => m.role))] 
+    : ['Admin', 'Finance Head', 'Member'];
+
   const filtered = memberList.filter(m => {
     const matchSearch = m.name.toLowerCase().includes(search.toLowerCase()) || m.email.toLowerCase().includes(search.toLowerCase());
     const matchRole = filterRole === 'all' || m.role === filterRole;
     return matchSearch && matchRole;
   });
 
+  // Re-added the missing functions!
   const openAdd = () => { setEditMember(null); setForm(emptyForm); setDialogOpen(true); };
-  const openEdit = (m) => { setEditMember(m); setForm({ name: m.name, email: m.email, role: m.role, class: m.class }); setDialogOpen(true); };
+  
+  const openEdit = (m) => { 
+    setEditMember(m); 
+    setForm({ name: m.name, email: m.email, role: m.role, class: m.class }); 
+    setDialogOpen(true); 
+  };
 
   const handleSave = () => {
     if (!form.name || !form.email || !form.role) {
@@ -82,25 +122,28 @@ const Members = () => {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(m => (
-              <tr key={m.id}>
-                <td className={styles.nameCell}>{m.name}</td>
-                <td><Badge variant="secondary">{m.role}</Badge></td>
-                <td className={`${styles.hideSmall} ${styles.mutedCell}`}>{m.email}</td>
-                <td>
-                  <Badge variant={m.status === 'Active' ? 'default' : m.status === 'Pending' ? 'outline' : 'secondary'}>
-                    {m.status}
-                  </Badge>
-                </td>
-                <td className={styles.actionsCell}>
-                  <Button variant="ghost" size="icon" onClick={() => setViewMember(m)}><Eye size={16} /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(m)}><Edit size={16} /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(m)}><Trash2 size={16} color="var(--destructive)" /></Button>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
+            {loading ? (
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Loading members...</td></tr>
+            ) : filtered.length === 0 ? (
               <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No members found.</td></tr>
+            ) : (
+              filtered.map(m => (
+                <tr key={m.id}>
+                  <td className={styles.nameCell}>{m.name}</td>
+                  <td><Badge variant="secondary">{m.role}</Badge></td>
+                  <td className={`${styles.hideSmall} ${styles.mutedCell}`}>{m.email}</td>
+                  <td>
+                    <Badge variant={m.status === 'Active' ? 'default' : m.status === 'Pending' ? 'outline' : 'secondary'}>
+                      {m.status}
+                    </Badge>
+                  </td>
+                  <td className={styles.actionsCell}>
+                    <Button variant="ghost" size="icon" onClick={() => setViewMember(m)}><Eye size={16} /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(m)}><Edit size={16} /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(m)}><Trash2 size={16} color="var(--destructive)" /></Button>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>

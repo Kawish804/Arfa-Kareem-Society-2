@@ -1,0 +1,78 @@
+.page {
+}
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.filterBar select {
+  max-width: 200px;
+}
+.count {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.tableWrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.table tbody tr:hover {
+  background: var(--primary-light);
+}
+.bold {
+  font-weight: 500;
+}
+.muted {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+.empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 32px 16px;
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.formFields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text);
+}

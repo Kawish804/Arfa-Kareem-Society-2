@@ -1,14 +1,14 @@
 export const members = [
-  { id: "1", name: "Ahmed Khan", role: "President", email: "ahmed@society.edu", status: "Active", joinDate: "2024-01-15", class: "BSCS-8A" },
-  { id: "2", name: "Sara Ali", role: "Vice President", email: "sara@society.edu", status: "Active", joinDate: "2024-01-15", class: "BSIT-6B" },
-  { id: "3", name: "Hassan Raza", role: "Finance Head", email: "hassan@society.edu", status: "Active", joinDate: "2024-02-01", class: "BSCS-6A" },
-  { id: "4", name: "Fatima Noor", role: "Event Coordinator", email: "fatima@society.edu", status: "Active", joinDate: "2024-02-10", class: "BSSE-4B" },
-  { id: "5", name: "Usman Tariq", role: "Member", email: "usman@society.edu", status: "Inactive", joinDate: "2024-03-05", class: "BSCS-2A" },
-  { id: "6", name: "Ayesha Malik", role: "Member", email: "ayesha@society.edu", status: "Active", joinDate: "2024-03-12", class: "BSIT-4A" },
-  { id: "7", name: "Bilal Hussain", role: "Secretary", email: "bilal@society.edu", status: "Active", joinDate: "2024-01-20", class: "BSCS-8B" },
-  { id: "8", name: "Zainab Shah", role: "Member", email: "zainab@society.edu", status: "Active", joinDate: "2024-04-01", class: "BSSE-6A" },
-  { id: "9", name: "Kamran Yousuf", role: "Member", email: "kamran@society.edu", status: "Pending", joinDate: "2024-05-15", class: "BSCS-2B" },
-  { id: "10", name: "Nadia Iqbal", role: "Member", email: "nadia@society.edu", status: "Active", joinDate: "2024-04-20", class: "BSIT-8A" },
+  { id: "1", name: "Ahmed Khan", role: "President", email: "ahmed@society.edu", status: "Active", joinDate: "2024-01-15", class: "BSCS-8A", eventsCount: 3, isTopContributor: true },
+  { id: "2", name: "Sara Ali", role: "Vice President", email: "sara@society.edu", status: "Active", joinDate: "2024-01-15", class: "BSIT-6B", eventsCount: 2, isTopContributor: true },
+  { id: "3", name: "Hassan Raza", role: "Finance Head", email: "hassan@society.edu", status: "Active", joinDate: "2024-02-01", class: "BSCS-6A", eventsCount: 1, isTopContributor: false },
+  { id: "4", name: "Fatima Noor", role: "Event Coordinator", email: "fatima@society.edu", status: "Active", joinDate: "2024-02-10", class: "BSSE-4B", eventsCount: 2, isTopContributor: true },
+  { id: "5", name: "Usman Tariq", role: "Member", email: "usman@society.edu", status: "Inactive", joinDate: "2024-03-05", class: "BSCS-2A", eventsCount: 0, isTopContributor: false },
+  { id: "6", name: "Ayesha Malik", role: "Member", email: "ayesha@society.edu", status: "Active", joinDate: "2024-03-12", class: "BSIT-4A", eventsCount: 2, isTopContributor: false },
+  { id: "7", name: "Bilal Hussain", role: "Secretary", email: "bilal@society.edu", status: "Active", joinDate: "2024-01-20", class: "BSCS-8B", eventsCount: 1, isTopContributor: false },
+  { id: "8", name: "Zainab Shah", role: "CR", email: "zainab@society.edu", status: "Active", joinDate: "2024-04-01", class: "BSSE-6A", eventsCount: 1, isTopContributor: false },
+  { id: "9", name: "Kamran Yousuf", role: "Member", email: "kamran@society.edu", status: "Pending", joinDate: "2024-05-15", class: "BSCS-2B", eventsCount: 0, isTopContributor: false },
+  { id: "10", name: "Nadia Iqbal", role: "Member", email: "nadia@society.edu", status: "Active", joinDate: "2024-04-20", class: "BSIT-8A", eventsCount: 0, isTopContributor: false },
 ];
 
 export const funds = [
@@ -65,6 +65,67 @@ export const galleryImages = [
   { id: "6", url: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=400&h=300&fit=crop", event: "Tech Fest 2023", caption: "Award distribution" },
   { id: "7", url: "https://images.unsplash.com/photo-1531482615713-2afd69097998?w=400&h=300&fit=crop", event: "Workshop", caption: "Group activity" },
   { id: "8", url: "https://images.unsplash.com/photo-1559223607-a43c990c692c?w=400&h=300&fit=crop", event: "Sports Gala", caption: "Football match" },
+];
+
+export const eventParticipants = [
+  { id: "1", eventId: "1", memberId: "1", memberName: "Ahmed Khan", role: "Organizer", teamwork: 5, communication: 4, responsibility: 5, totalScore: 14 },
+  { id: "2", eventId: "1", memberId: "2", memberName: "Sara Ali", role: "Coordinator", teamwork: 4, communication: 5, responsibility: 4, totalScore: 13 },
+  { id: "3", eventId: "1", memberId: "4", memberName: "Fatima Noor", role: "Volunteer", teamwork: 4, communication: 4, responsibility: 5, totalScore: 13 },
+  { id: "4", eventId: "1", memberId: "6", memberName: "Ayesha Malik", role: "Volunteer", teamwork: 3, communication: 4, responsibility: 4, totalScore: 11 },
+  { id: "5", eventId: "2", memberId: "1", memberName: "Ahmed Khan", role: "Organizer", teamwork: 5, communication: 5, responsibility: 5, totalScore: 15 },
+  { id: "6", eventId: "2", memberId: "7", memberName: "Bilal Hussain", role: "Coordinator", teamwork: 4, communication: 3, responsibility: 4, totalScore: 11 },
+  { id: "7", eventId: "3", memberId: "4", memberName: "Fatima Noor", role: "Organizer", teamwork: 5, communication: 5, responsibility: 5, totalScore: 15 },
+  { id: "8", eventId: "4", memberId: "2", memberName: "Sara Ali", role: "Coordinator", teamwork: 4, communication: 4, responsibility: 4, totalScore: 12 },
+  { id: "9", eventId: "4", memberId: "8", memberName: "Zainab Shah", role: "Volunteer", teamwork: 3, communication: 4, responsibility: 3, totalScore: 10 },
+  { id: "10", eventId: "5", memberId: "6", memberName: "Ayesha Malik", role: "Organizer", teamwork: 4, communication: 5, responsibility: 4, totalScore: 13 },
+  { id: "11", eventId: "6", memberId: "1", memberName: "Ahmed Khan", role: "Organizer", teamwork: 5, communication: 5, responsibility: 5, totalScore: 15 },
+  { id: "12", eventId: "6", memberId: "3", memberName: "Hassan Raza", role: "Volunteer", teamwork: 4, communication: 3, responsibility: 4, totalScore: 11 },
+];
+
+export const eventFeedbacks = [
+  { id: "1", eventId: "2", memberName: "Usman Tariq", rating: 5, comment: "Excellent seminar! Very informative and well organized.", date: "2024-10-21" },
+  { id: "2", eventId: "2", memberName: "Nadia Iqbal", rating: 4, comment: "Good session, but could have been longer.", date: "2024-10-21" },
+  { id: "3", eventId: "4", memberName: "Kamran Yousuf", rating: 5, comment: "The AI workshop was amazing! Learned a lot.", date: "2024-10-06" },
+  { id: "4", eventId: "4", memberName: "Ayesha Malik", rating: 4, comment: "Great hands-on experience. More workshops please!", date: "2024-10-06" },
+  { id: "5", eventId: "6", memberName: "Sara Ali", rating: 5, comment: "Welcome party was so fun! Great performances.", date: "2024-09-16" },
+  { id: "6", eventId: "6", memberName: "Fatima Noor", rating: 4, comment: "Nice event but venue was a bit small.", date: "2024-09-16" },
+];
+
+export const eventScreenshots = [
+  { id: "1", eventId: "2", url: "https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=400&h=300&fit=crop", caption: "Seminar in progress" },
+  { id: "2", eventId: "4", url: "https://images.unsplash.com/photo-1492538368677-f6e0afe31dcc?w=400&h=300&fit=crop", caption: "Workshop hands-on session" },
+  { id: "3", eventId: "6", url: "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=400&h=300&fit=crop", caption: "Welcome party stage" },
+  { id: "4", eventId: "6", url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=300&fit=crop", caption: "Group photo" },
+];
+
+export const visitors = [
+  { id: "1", name: "Ali Courier", type: "Delivery", purpose: "Package delivery for CS Lab", entryTime: "2024-10-20 09:30", exitTime: "2024-10-20 09:45", contactNo: "0300-1234567", hostMember: "Ahmed Khan" },
+  { id: "2", name: "Rashid Ahmed", type: "Staff", purpose: "IT maintenance", entryTime: "2024-10-20 10:00", exitTime: "2024-10-20 12:30", contactNo: "0321-9876543", hostMember: "Sara Ali" },
+  { id: "3", name: "Dr. Farah Bano", type: "Guest", purpose: "Guest lecture on Cybersecurity", entryTime: "2024-10-21 14:00", exitTime: "2024-10-21 16:00", contactNo: "0333-4567890", hostMember: "Ahmed Khan" },
+  { id: "4", name: "Zeeshan Express", type: "Delivery", purpose: "Stationery delivery", entryTime: "2024-10-22 11:00", exitTime: "2024-10-22 11:15", contactNo: "0345-6789012", hostMember: "Bilal Hussain" },
+  { id: "5", name: "Mrs. Sadia Qureshi", type: "Guest", purpose: "Parent meeting", entryTime: "2024-10-22 13:00", exitTime: "", contactNo: "0312-3456789", hostMember: "Fatima Noor" },
+];
+
+export const complaints = [
+  { id: "1", title: "Lab Equipment Not Working", description: "The projector in CS Lab 2 has been malfunctioning for a week.", submittedBy: "Ayesha Malik", memberId: "6", date: "2024-10-18", status: "Pending", category: "Infrastructure", response: "" },
+  { id: "2", title: "Event Scheduling Conflict", description: "The coding competition date clashes with mid-term exams.", submittedBy: "Usman Tariq", memberId: "5", date: "2024-10-15", status: "Resolved", category: "Events", response: "Event has been rescheduled to December 1st." },
+  { id: "3", title: "Fund Collection Issue", description: "My payment was marked as unpaid despite submitting the receipt.", submittedBy: "Fatima Noor", memberId: "4", date: "2024-10-20", status: "In Progress", category: "Finance", response: "Looking into the matter." },
+];
+
+export const chatMessages = [
+  { id: "1", senderId: "1", senderName: "Ahmed Khan", receiverId: "6", receiverName: "Ayesha Malik", message: "Hi Ayesha, are you available for the Tech Fest planning meeting tomorrow?", timestamp: "2024-10-20 14:30", read: true },
+  { id: "2", senderId: "6", senderName: "Ayesha Malik", receiverId: "1", receiverName: "Ahmed Khan", message: "Yes, I'll be there! What time?", timestamp: "2024-10-20 14:35", read: true },
+  { id: "3", senderId: "1", senderName: "Ahmed Khan", receiverId: "6", receiverName: "Ayesha Malik", message: "3 PM in the CS Lab. See you there!", timestamp: "2024-10-20 14:38", read: false },
+  { id: "4", senderId: "2", senderName: "Sara Ali", receiverId: "6", receiverName: "Ayesha Malik", message: "Hey Ayesha, can you help with the event decorations?", timestamp: "2024-10-21 09:00", read: false },
+  { id: "5", senderId: "4", senderName: "Fatima Noor", receiverId: "6", receiverName: "Ayesha Malik", message: "Don't forget to submit your feedback for the workshop!", timestamp: "2024-10-19 16:00", read: true },
+];
+
+export const notifications = [
+  { id: "1", title: "New Announcement", message: "Annual Tech Fest Registration is now open!", date: "2024-10-20", read: false, type: "announcement" },
+  { id: "2", title: "Event Reminder", message: "Coding Competition is in 2 weeks.", date: "2024-10-19", read: false, type: "event" },
+  { id: "3", title: "Request Approved", message: "Your workshop room booking has been approved.", date: "2024-10-18", read: true, type: "request" },
+  { id: "4", title: "Fund Status", message: "Your semester contribution has been recorded.", date: "2024-10-17", read: true, type: "fund" },
+  { id: "5", title: "Performance Update", message: "Your evaluation for Career Seminar is available.", date: "2024-10-16", read: true, type: "performance" },
 ];
 
 export const chartData = {

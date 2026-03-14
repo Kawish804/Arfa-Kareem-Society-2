@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, CalendarDays, Megaphone, Image, Send, Users, ArrowRight, LogIn } from 'lucide-react';
+import { GraduationCap, CalendarDays, Megaphone, Image, Send, Users, ArrowRight, LogIn, Heart, AlertTriangle } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
@@ -14,7 +14,9 @@ const StudentPortal = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [requestOpen, setRequestOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [form, setForm] = useState({ title: '', name: '', type: '' });
+  const [report, setReport] = useState({ name: '', subject: '', message: '' });
 
   const upcomingEvents = events.filter(e => e.status === 'Upcoming');
   const recentAnnouncements = announcements.slice(0, 3);
@@ -60,7 +62,8 @@ const StudentPortal = () => {
           <p className={styles.heroSubtitle}>Stay connected with society activities, events, and announcements. Submit requests and explore our gallery.</p>
           <div className={styles.heroBtns}>
             <Button size="lg" onClick={() => setRequestOpen(true)}><Send size={16} /> Submit Request</Button>
-            <Button size="lg" variant="outline" onClick={() => document.getElementById('events')?.scrollIntoView({ behavior: 'smooth' })}><CalendarDays size={16} /> View Events</Button>
+            <Button size="lg" variant="outline" onClick={() => navigate('/contribute')}><Heart size={16} /> Contribute</Button>
+            <Button size="lg" variant="outline" onClick={() => setReportOpen(true)}><AlertTriangle size={16} /> Report Issue</Button>
           </div>
         </div>
       </section>
@@ -204,6 +207,38 @@ const StudentPortal = () => {
               <option value="Event">Event Approval</option>
               <option value="Department">Department Support</option>
             </Select>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Report Issue Modal */}
+      <Modal open={reportOpen} onClose={() => setReportOpen(false)} title="Report an Issue"
+        footer={<>
+          <Button variant="outline" onClick={() => setReportOpen(false)}>Cancel</Button>
+          <Button onClick={() => {
+            if (!report.name || !report.subject || !report.message) {
+              toast({ title: 'Please fill all required fields', variant: 'destructive' }); return;
+            }
+            toast({ title: 'Report Submitted', description: 'Your report has been sent to the Society President.' });
+            setReportOpen(false);
+            setReport({ name: '', subject: '', message: '' });
+          }}>Send Report</Button>
+        </>}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0 }}>
+            Report any ongoing issues. Your message will be sent directly to the Society President.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Your Name *</label>
+            <Input placeholder="Full name" value={report.name} onChange={e => setReport(p => ({ ...p, name: e.target.value }))} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Subject *</label>
+            <Input placeholder="Brief description of the issue" value={report.subject} onChange={e => setReport(p => ({ ...p, subject: e.target.value }))} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Message *</label>
+            <Textarea placeholder="Describe the issue in detail..." rows={4} value={report.message} onChange={e => setReport(p => ({ ...p, message: e.target.value }))} />
           </div>
         </div>
       </Modal>

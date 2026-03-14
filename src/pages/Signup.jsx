@@ -11,6 +11,7 @@ const Signup = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false); // Added loading state
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -40,11 +41,37 @@ const Signup = () => {
     return e;
   };
 
-  const handleSubmit = (e) => {
+  // THIS IS THE UPDATED FUNCTION THAT TALKS TO THE DATABASE
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const v = validate();
     if (Object.keys(v).length) { setErrors(v); return; }
-    setSubmitted(true);
+
+    setLoading(true);
+    try {
+      // Send the form data to your Node.js backend
+      const response = await fetch('http://localhost:5000/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSubmitted(true);
+      } else {
+        // UPDATE THIS LINE to catch data.error
+        alert(data.message || data.error || "Failed to submit application");
+        console.log("Backend response:", data);
+      }
+    } catch (error) {
+      alert("Could not connect to the server. Make sure your backend is running!");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -132,7 +159,7 @@ const Signup = () => {
               <label className={styles.label}>Semester *</label>
               <Select value={form.semester} onChange={e => set('semester', e.target.value)}>
                 <option value="">Select semester</option>
-                {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={`${s}th Semester`}>{s}th Semester</option>)}
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <option key={s} value={`${s}th Semester`}>{s}th Semester</option>)}
               </Select>
               {errors.semester && <span className={styles.error}>{errors.semester}</span>}
             </div>
@@ -143,8 +170,8 @@ const Signup = () => {
             <Textarea placeholder="Tell us about your interest in the society..." value={form.reason} onChange={e => set('reason', e.target.value)} rows={3} />
           </div>
 
-          <Button type="submit" size="lg" className={styles.submitBtn}>
-            <UserPlus size={18} /> Submit Application
+          <Button type="submit" size="lg" className={styles.submitBtn} disabled={loading}>
+            <UserPlus size={18} /> {loading ? 'Submitting...' : 'Submit Application'}
           </Button>
         </form>
 

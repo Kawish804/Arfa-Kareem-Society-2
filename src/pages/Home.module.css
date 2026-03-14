@@ -12,7 +12,14 @@
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
-
+.navAction  {
+  margin: 10px;
+  display: flex;
+  justify-content: center;
+}
+.navAction > button {
+  padding: 0 15px;
+} 
 .navInner {
   max-width: 1200px;
   margin: 0 auto;

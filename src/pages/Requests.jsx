@@ -1,108 +1,115 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Check, X } from 'lucide-react';
-import PageHeader from '@/components/PageHeader.jsx';
-import Button from '@/components/ui/Button.jsx';
-import Input from '@/components/ui/Input.jsx';
-import Select from '@/components/ui/Select.jsx';
-import Badge from '@/components/ui/Badge.jsx';
-import Modal from '@/components/ui/Modal.jsx';
-import { requests as initialRequests } from '@/data/mockData.js';
-import { useToast } from '@/components/Toast/ToastProvider.jsx';
+import PageHeader from '../components/PageHeader';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import { useToast } from '../components/Toast/ToastProvider';
 import styles from './Requests.module.css';
 
-const emptyForm = { title: '', submittedBy: '', type: '' };
-
 const Requests = () => {
-  const [requestList, setRequestList] = useState(initialRequests);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [requestList, setRequestList] = useState([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const statusVariant = (s) => s === 'Approved' ? 'success' : s === 'Rejected' ? 'destructive' : 'outline';
 
-  const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  const handleApprove = (r) => {
-    setRequestList(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Approved' } : x));
-    toast({ title: 'Approved', description: r.title });
-  };
-
-  const handleReject = (r) => {
-    setRequestList(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Rejected' } : x));
-    toast({ title: 'Rejected', description: r.title, variant: 'destructive' });
-  };
-
-  const handleSubmit = () => {
-    if (!form.title || !form.submittedBy || !form.type) {
-      toast({ title: 'Please fill all fields', variant: 'destructive' }); return;
+  // FETCH PENDING REQUESTS FROM DATABASE
+  const fetchRequests = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/requests');
+      const data = await response.json();
+      if (response.ok) {
+        setRequestList(data);
+      }
+    } catch (error) {
+      toast({ title: 'Error fetching requests', variant: 'destructive' });
+    } finally {
+      setLoading(false);
     }
-    const newReq = { id: String(Date.now()), title: form.title, submittedBy: form.submittedBy, date: new Date().toISOString().split('T')[0], status: 'Pending', type: form.type };
-    setRequestList(prev => [...prev, newReq]);
-    toast({ title: 'Request Submitted' });
-    setDialogOpen(false);
-    setForm(emptyForm);
+  };
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  // APPROVE MEMBER
+  const handleApprove = async (id, name) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/admin/approve/${id}`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        // Remove the approved user from the pending list on the screen
+        setRequestList(prev => prev.filter(req => req._id !== id));
+        toast({ title: 'Approved!', description: `${name} has been emailed their Membership ID.` });
+      }
+    } catch (error) {
+      toast({ title: 'Error approving request', variant: 'destructive' });
+    }
+  };
+
+  // REJECT MEMBER
+  const handleReject = async (id, name) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/admin/reject/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        // Remove the rejected user from the pending list on the screen
+        setRequestList(prev => prev.filter(req => req._id !== id));
+        toast({ title: 'Rejected', description: `${name}'s request was removed.`, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Error rejecting request', variant: 'destructive' });
+    }
   };
 
   return (
     <div>
-      <PageHeader title="Requests & Approvals" description="Manage member requests and approvals" actionLabel="Submit Request" onAction={() => { setForm(emptyForm); setDialogOpen(true); }} />
+      <PageHeader 
+        title="Membership Requests" 
+        description="Review and approve new student applications for the society" 
+      />
 
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Request Title</th>
-              <th className={styles.hideSmall}>Submitted By</th>
-              <th className={styles.hideMd}>Type</th>
-              <th className={styles.hideMd}>Date</th>
+              <th>Applicant Name</th>
+              <th className={styles.hideSmall}>Email</th>
+              <th className={styles.hideMd}>Department & Semester</th>
               <th>Status</th>
               <th className={styles.actionsHead}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {requestList.map(r => (
-              <tr key={r.id}>
-                <td className={styles.bold}>{r.title}</td>
-                <td className={`${styles.hideSmall} ${styles.muted}`}>{r.submittedBy}</td>
-                <td className={styles.hideMd}><Badge variant="secondary">{r.type}</Badge></td>
-                <td className={`${styles.hideMd} ${styles.muted}`}>{r.date}</td>
-                <td><Badge variant={statusVariant(r.status)}>{r.status}</Badge></td>
-                <td className={styles.actionsCell}>
-                  {r.status === 'Pending' ? (
+            {loading ? (
+              <tr><td colSpan={5} style={{textAlign: 'center', padding: '20px'}}>Loading requests...</td></tr>
+            ) : requestList.length === 0 ? (
+              <tr><td colSpan={5} style={{textAlign: 'center', padding: '20px', color: '#666'}}>No pending requests.</td></tr>
+            ) : (
+              requestList.map(r => (
+                <tr key={r._id}>
+                  <td className={styles.bold}>{r.fullName}</td>
+                  <td className={`${styles.hideSmall} ${styles.muted}`}>{r.email}</td>
+                  <td className={styles.hideMd}>
+                    <Badge variant="secondary">{r.department} - {r.semester}</Badge>
+                  </td>
+                  <td><Badge variant="outline">Pending Approval</Badge></td>
+                  <td className={styles.actionsCell}>
                     <div className={styles.actionBtns}>
-                      <Button size="sm" variant="outline" onClick={() => handleApprove(r)}>
+                      <Button size="sm" variant="outline" onClick={() => handleApprove(r._id, r.fullName)}>
                         <Check size={14} /> Approve
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleReject(r)}>
+                      <Button size="sm" variant="outline" onClick={() => handleReject(r._id, r.fullName)}>
                         <X size={14} /> Reject
                       </Button>
                     </div>
-                  ) : <span className={styles.muted}>—</span>}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
-
-      <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title="Submit Request"
-        footer={<>
-          <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleSubmit}>Submit</Button>
-        </>}>
-        <div className={styles.formFields}>
-          <div className={styles.field}><label>Request Title *</label><Input placeholder="What do you need?" value={form.title} onChange={e => setField('title', e.target.value)} /></div>
-          <div className={styles.field}><label>Your Name *</label><Input placeholder="Your full name" value={form.submittedBy} onChange={e => setField('submittedBy', e.target.value)} /></div>
-          <div className={styles.field}>
-            <label>Type *</label>
-            <Select value={form.type} onChange={e => setField('type', e.target.value)}>
-              <option value="">Select type</option>
-              <option value="Budget">Budget Approval</option>
-              <option value="Event">Event Approval</option>
-              <option value="Department">Department Support</option>
-            </Select>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };
