@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Wallet, Receipt, CalendarDays, FileCheck,
-  Megaphone, Image, BarChart3, Settings, LogOut, GraduationCap, Menu, X, ChevronLeft, Shield, MessageCircle, Bell
+  Megaphone, Image, BarChart3, Settings, LogOut, GraduationCap, Menu, X, ChevronLeft, Shield, MessageCircle, Bell, UserCheck
 } from 'lucide-react';
 import styles from './DashboardLayout.module.css';
 
@@ -12,9 +12,12 @@ const menuItems = [
   { title: "Funds", url: "/dashboard/funds", icon: Wallet },
   { title: "Expenses", url: "/dashboard/expenses", icon: Receipt },
   { title: "Events", url: "/dashboard/events", icon: CalendarDays },
-  { title: "Requests", url: "/dashboard/requests", icon: FileCheck },
+  { title: "Members Request", url: "/dashboard/requests", icon: FileCheck },
+  { title: "Participant Request", url: "/dashboard/participant-requests", icon: UserCheck },
+  { title: "Fund Requests", url: "/dashboard/fund-requests", icon: Wallet },
   { title: "Announcements", url: "/dashboard/announcements", icon: Megaphone },
   { title: "Gallery", url: "/dashboard/gallery", icon: Image },
+  { title: "Participants", url: "/dashboard/participants", icon: Users },
   { title: "Visitors", url: "/dashboard/visitors", icon: Shield },
   { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
   { title: "Settings", url: "/dashboard/settings", icon: Settings },

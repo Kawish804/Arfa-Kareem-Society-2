@@ -1,0 +1,27 @@
+.statsRow { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.stat { flex: 1; min-width: 120px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.statNum { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+.statLabel { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.statPending { border-left: 3px solid hsl(45, 93%, 47%); }
+.statApproved { border-left: 3px solid hsl(142, 71%, 45%); }
+.statRejected { border-left: 3px solid hsl(0, 84%, 60%); }
+
+.tableWrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.table th { text-align: left; padding: 12px 16px; font-weight: 500; color: var(--text-muted); font-size: 0.8125rem; border-bottom: 1px solid var(--border); }
+.table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background: rgba(30,58,138,0.02); }
+.bold { font-weight: 500; }
+.muted { color: var(--text-muted); }
+.actionsHead { text-align: right; }
+.actionsCell { text-align: right; }
+.actionBtns { display: flex; justify-content: flex-end; gap: 6px; }
+.hideSmall { display: none; }
+.hideMd { display: none; }
+@media (min-width: 640px) { .hideSmall { display: table-cell; } }
+@media (min-width: 768px) { .hideMd { display: table-cell; } }
+
+.detailCard { display: flex; flex-direction: column; gap: 14px; }
+.detailRow { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; }
+.detailRow strong { min-width: 60px; }
