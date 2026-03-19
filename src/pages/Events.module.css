@@ -1,12 +1,308 @@
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); transition: all 0.3s ease; }
-.card:hover { box-shadow: var(--shadow-lg); transform: translateY(-4px); }
-.cardTop { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.date { font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
-.cardTitle { font-size: 1.0625rem; font-weight: 600; margin-bottom: 8px; }
-.cardDesc { font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.budget { font-size: 0.875rem; font-weight: 500; color: var(--secondary); margin-bottom: 16px; }
-.cardActions { display: flex; gap: 8px; }
-.formFields { display: flex; flex-direction: column; gap: 16px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field label { font-size: 0.8125rem; font-weight: 500; color: var(--text); }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  transition: all 0.3s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+}
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cardTitle {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.cardDesc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.budget {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--secondary);
+  margin-bottom: 8px;
+}
+.cardMeta {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.metaItem {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cardActions {
+  display: flex;
+  gap: 8px;
+}
+.formFields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.field label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text);
+}
+.fieldRow {
+  display: flex;
+  gap: 12px;
+}
+.formSection {
+  padding: 4px 0 2px;
+  border-bottom: 1px solid var(--border);
+  margin-top: 4px;
+}
+.sectionTitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 600px) {
+  .fieldRow {
+    flex-direction: column;
+  }
+}
+
+/* Detail Tabs */
+.detailTabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.detailTab {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.detailTab:hover {
+  color: var(--text);
+}
+
+.detailTabActive {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* Participants */
+.participantList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.participantRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+}
+
+.participantRow > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.participantName {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Evaluation */
+.evalList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.evalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.evalInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.evalScores {
+  display: flex;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.evalTotal {
+  padding: 12px;
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 0.9375rem;
+  color: var(--primary);
+}
+
+/* Screenshots */
+.uploadArea {
+  margin-bottom: 16px;
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.uploadLabel:hover {
+  background: rgba(30, 58, 138, 0.14);
+}
+
+.ssGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.ssItem {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.ssImg {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+}
+
+.ssCaption {
+  display: block;
+  padding: 6px 8px;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  background: var(--background);
+}
+
+/* Feedbacks */
+.fbList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fbItem {
+  padding: 12px;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+}
+
+.fbHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.fbName {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.fbStars {
+  display: flex;
+  gap: 2px;
+}
+
+.fbComment {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.fbDate {
+  font-size: 0.6875rem;
+  color: var(--text-light);
+}
+
+.emptyMsg {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px;
+  font-size: 0.875rem;
+}

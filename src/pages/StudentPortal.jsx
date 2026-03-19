@@ -74,6 +74,9 @@ const StudentPortal = () => {
           <h1 className={styles.heroTitle}>Welcome to<br /><span className={styles.heroHighlight}>Arfa Kareem Society</span></h1>
           <p className={styles.heroSubtitle}>Stay connected with society activities, events, and announcements. Submit requests and explore our gallery.</p>
           <div className={styles.heroBtns}>
+            <Button size="lg" onClick={() => navigate('/signup')}>
+              Join Society <ArrowRight size={16} />
+            </Button>
             <Button size="lg" onClick={() => setRequestOpen(true)}><Send size={16} /> Submit Request</Button>
             <Button size="lg" variant="outline" onClick={() => navigate('/contribute')}><Heart size={16} /> Contribute</Button>
             <Button size="lg" variant="outline" onClick={() => setFundOpen(true)}><DollarSign size={16} /> Fund Appeal</Button>
@@ -289,6 +292,7 @@ const StudentPortal = () => {
           </div>
         </div>
       </Modal>
+
       {/* Participate Modal */}
       <Modal open={participateOpen} onClose={() => setParticipateOpen(false)} title={`Join: ${participateEvent?.title || ''}`}
         footer={<>
@@ -315,17 +319,45 @@ const StudentPortal = () => {
           </div>
         </div>
       </Modal>
+
       {/* Fund Appeal Modal */}
       <Modal open={fundOpen} onClose={() => setFundOpen(false)} title="Fund Appeal"
         footer={<>
           <Button variant="outline" onClick={() => setFundOpen(false)}>Cancel</Button>
-          <Button onClick={() => {
+          <Button onClick={async () => {
             if (!fundForm.name || !fundForm.email || !fundForm.amount || !fundForm.purpose) {
               toast({ title: 'Please fill all required fields', variant: 'destructive' }); return;
             }
-            toast({ title: 'Fund Appeal Submitted!', description: `Your request for Rs ${Number(fundForm.amount).toLocaleString()} has been sent to the Society President.` });
-            setFundOpen(false);
-            setFundForm({ name: '', email: '', amount: '', purpose: '', description: '' });
+
+            try {
+              const response = await fetch('http://localhost:5000/api/funds/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  name: fundForm.name,
+                  email: fundForm.email,
+                  amount: Number(fundForm.amount),
+                  purpose: fundForm.purpose,
+                  description: fundForm.description
+                })
+              });
+
+              if (response.ok) {
+                toast({
+                  title: 'Fund Appeal Submitted!',
+                  description: `Your request for Rs ${Number(fundForm.amount).toLocaleString()} has been sent to the Society President.`
+                });
+                setFundOpen(false);
+                setFundForm({ name: '', email: '', amount: '', purpose: '', description: '' });
+              } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.error("Backend Error Data:", errorData);
+                toast({ title: 'Submission Failed', description: 'Could not submit your appeal.', variant: 'destructive' });
+              }
+            } catch (error) {
+              console.error("Submission Error:", error);
+              toast({ title: 'Server Error', description: 'Failed to connect to the server.', variant: 'destructive' });
+            }
           }}>Submit Appeal</Button>
         </>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

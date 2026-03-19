@@ -32,7 +32,7 @@ const App = () => (
   <ToastProvider>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<StudentPortal />} />
         <Route path="/student" element={<StudentPortal />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />

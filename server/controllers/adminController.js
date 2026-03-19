@@ -78,3 +78,29 @@ exports.getApprovedMembers = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch members." });
     }
 };
+// GET DASHBOARD STATS
+exports.getDashboardStats = async (req, res) => {
+    try {
+        // Fetch real data from your User model
+        const totalMembers = await User.countDocuments({ isApproved: true, isActive: true });
+        const pendingRequests = await User.countDocuments({ isApproved: false });
+
+        // TODO: Replace these with real database queries once you create Funds/Events models
+        const totalFunds = 0;
+        const totalExpenses = 0;
+        const activeEvents = 0;
+
+        res.status(200).json({
+            stats: {
+                totalMembers,
+                totalFunds,
+                totalExpenses,
+                activeEvents,
+                pendingRequests
+            }
+        });
+    } catch (error) {
+        console.error("Dashboard Stats Error:", error);
+        res.status(500).json({ error: "Failed to fetch dashboard statistics" });
+    }
+};

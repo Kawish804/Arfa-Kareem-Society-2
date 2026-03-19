@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PageHeader from '@/components/PageHeader.jsx';
 import Button from '@/components/ui/Button.jsx';
 import Badge from '@/components/ui/Badge.jsx';
@@ -7,19 +7,37 @@ import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import { DollarSign, Clock, CheckCircle, XCircle, Eye } from 'lucide-react';
 import styles from './FundRequests.module.css';
 
-const initialRequests = [
-  { id: '1', name: 'Ali Hassan', email: 'ali@university.edu', amount: 5000, purpose: 'Event Sponsorship', description: 'Need funds for tech workshop supplies and refreshments.', date: '2024-01-15', status: 'Pending' },
-  { id: '2', name: 'Sara Ahmed', email: 'sara@university.edu', amount: 3000, purpose: 'Project Materials', description: 'Requesting budget for final year project presentation materials.', date: '2024-01-14', status: 'Pending' },
-  { id: '3', name: 'Usman Khan', email: 'usman@university.edu', amount: 8000, purpose: 'Competition Fee', description: 'Registration and travel for national coding competition.', date: '2024-01-13', status: 'Approved' },
-  { id: '4', name: 'Fatima Noor', email: 'fatima@university.edu', amount: 2000, purpose: 'Study Resources', description: 'Books and online course subscription for skill development.', date: '2024-01-12', status: 'Rejected' },
-];
-
 const FundRequests = () => {
   const { toast } = useToast();
-  const [requests, setRequests] = useState(initialRequests);
+  // 1. Start with an empty array and add a loading state
+  const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [filter, setFilter] = useState('All');
+  const [loading, setLoading] = useState(true);
 
+  // 2. Fetch data from the backend when the component mounts
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/funds/requests');
+        if (response.ok) {
+          const data = await response.json();
+          setRequests(data);
+        } else {
+          toast({ title: 'Failed to load requests', variant: 'destructive' });
+        }
+      } catch (error) {
+        console.error("Fetch Error:", error);
+        toast({ title: 'Server error', description: 'Could not connect to database.', variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchRequests();
+  }, [toast]);
+
+  // Calculate dynamic stats
   const stats = {
     total: requests.length,
     pending: requests.filter(r => r.status === 'Pending').length,
@@ -30,10 +48,36 @@ const FundRequests = () => {
 
   const filtered = filter === 'All' ? requests : requests.filter(r => r.status === filter);
 
-  const updateStatus = (id, status) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-    toast({ title: `Request ${status}`, description: `Fund request has been ${status.toLowerCase()}.` });
+  // 3. Update status in the database AND locally
+  const updateStatus = async (id, status) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/funds/requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+
+      if (response.ok) {
+        // Update the UI locally if the database update was successful
+        setRequests(prev => prev.map(r => r._id === id ? { ...r, status } : r));
+        toast({ title: `Request ${status}`, description: `Fund request has been ${status.toLowerCase()}.` });
+      } else {
+        toast({ title: 'Failed to update status', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error("Update Error:", error);
+      toast({ title: 'Server error', variant: 'destructive' });
+    }
   };
+
+  // Show a loading indicator while fetching data
+  if (loading) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+        Loading fund requests...
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -82,14 +126,15 @@ const FundRequests = () => {
           </thead>
           <tbody>
             {filtered.map(r => (
-              <tr key={r.id}>
+              <tr key={r._id}> {/* Use r._id for MongoDB */}
                 <td>
                   <div className={styles.bold}>{r.name}</div>
                   <div className={styles.muted} style={{ fontSize: '0.75rem' }}>{r.email}</div>
                 </td>
                 <td className={styles.hideMd}>{r.purpose}</td>
-                <td className={styles.bold}>Rs {r.amount.toLocaleString()}</td>
-                <td className={styles.hideSmall}>{r.date}</td>
+                <td className={styles.bold}>Rs {r.amount?.toLocaleString() || 0}</td>
+                {/* Format the MongoDB date string properly */}
+                <td className={styles.hideSmall}>{new Date(r.date).toLocaleDateString()}</td>
                 <td>
                   <Badge variant={r.status === 'Approved' ? 'success' : r.status === 'Rejected' ? 'danger' : 'warning'}>{r.status}</Badge>
                 </td>
@@ -98,8 +143,8 @@ const FundRequests = () => {
                     <Button size="sm" variant="outline" onClick={() => setSelected(r)}><Eye size={14} /></Button>
                     {r.status === 'Pending' && (
                       <>
-                        <Button size="sm" onClick={() => updateStatus(r.id, 'Approved')}><CheckCircle size={14} /></Button>
-                        <Button size="sm" variant="outline" onClick={() => updateStatus(r.id, 'Rejected')}><XCircle size={14} /></Button>
+                        <Button size="sm" onClick={() => updateStatus(r._id, 'Approved')}><CheckCircle size={14} /></Button>
+                        <Button size="sm" variant="outline" onClick={() => updateStatus(r._id, 'Rejected')}><XCircle size={14} /></Button>
                       </>
                     )}
                   </div>
@@ -116,20 +161,20 @@ const FundRequests = () => {
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Fund Request Details"
         footer={selected?.status === 'Pending' ? (
           <>
-            <Button variant="outline" onClick={() => { updateStatus(selected.id, 'Rejected'); setSelected(null); }}>Reject</Button>
-            <Button onClick={() => { updateStatus(selected.id, 'Approved'); setSelected(null); }}>Approve</Button>
+            <Button variant="outline" onClick={() => { updateStatus(selected._id, 'Rejected'); setSelected(null); }}>Reject</Button>
+            <Button onClick={() => { updateStatus(selected._id, 'Approved'); setSelected(null); }}>Approve</Button>
           </>
         ) : <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>}>
         {selected && (
           <div className={styles.detailCard}>
             <div className={styles.detailRow}><strong>Name:</strong> {selected.name}</div>
             <div className={styles.detailRow}><strong>Email:</strong> {selected.email}</div>
-            <div className={styles.detailRow}><strong>Amount:</strong> Rs {selected.amount.toLocaleString()}</div>
+            <div className={styles.detailRow}><strong>Amount:</strong> Rs {selected.amount?.toLocaleString() || 0}</div>
             <div className={styles.detailRow}><strong>Purpose:</strong> {selected.purpose}</div>
-            <div className={styles.detailRow}><strong>Date:</strong> {selected.date}</div>
+            <div className={styles.detailRow}><strong>Date:</strong> {new Date(selected.date).toLocaleDateString()}</div>
             <div className={styles.detailRow}><strong>Status:</strong> <Badge variant={selected.status === 'Approved' ? 'success' : selected.status === 'Rejected' ? 'danger' : 'warning'}>{selected.status}</Badge></div>
-            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', background: 'var(--background)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
-              {selected.description}
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', background: 'var(--background)', padding: 12, borderRadius: 8, border: '1px solid var(--border)', marginTop: 8 }}>
+              {selected.description || "No additional description provided."}
             </div>
           </div>
         )}

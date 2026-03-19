@@ -260,6 +260,42 @@
   font-size: 0.75rem;
   color: var(--text-light);
 }
+.fundStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.fundStatCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.fundStatLabel {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+.fundStatValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.fundCollected {
+  color: var(--primary);
+}
+.fundPending {
+  color: var(--destructive);
+}
+.actionBtns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
 .formFields {
   display: flex;
   flex-direction: column;
@@ -283,5 +319,8 @@
   }
   .tab span {
     display: none;
+  }
+  .fundStats {
+    grid-template-columns: 1fr 1fr;
   }
 }

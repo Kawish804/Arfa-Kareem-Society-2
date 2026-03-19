@@ -1,17 +1,23 @@
 import { useState } from 'react';
-import { CalendarDays, Edit, Trash2, Eye, Users, Star, Image as ImageIcon, MessageSquare, Upload } from 'lucide-react';
-import PageHeader from '../components/PageHeader.jsx';
-import Button from '../components/ui/Button.jsx';
-import Input from '../components/ui/Input.jsx';
-import Textarea from '../components/ui/Textarea.jsx';
-import Badge from '../components/ui/Badge.jsx';
-import Modal from '../components/ui/Modal.jsx';
-import Select from '../components/ui/Select.jsx';
-import { events as initialEvents, eventParticipants as initialParticipants, eventFeedbacks as initialFeedbacks, eventScreenshots as initialScreenshots, members } from '../data/mockData.js';
-import { useToast } from '../components/Toast/ToastProvider.jsx';
+import { CalendarDays, Edit, Trash2, Eye, Users, Star, Image as ImageIcon, MessageSquare, Upload, MapPin, Clock, GraduationCap } from 'lucide-react';
+import PageHeader from '@/components/PageHeader.jsx';
+import Button from '@/components/ui/Button.jsx';
+import Input from '@/components/ui/Input.jsx';
+import Textarea from '@/components/ui/Textarea.jsx';
+import Badge from '@/components/ui/Badge.jsx';
+import Modal from '@/components/ui/Modal.jsx';
+import Select from '@/components/ui/Select.jsx';
+import { events as initialEvents, eventParticipants as initialParticipants, eventFeedbacks as initialFeedbacks, eventScreenshots as initialScreenshots, members } from '@/data/mockData.js';
+import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './Events.module.css';
 
-const emptyForm = { title: '', date: '', description: '', budget: '', status: 'Upcoming' };
+const emptyForm = {
+  title: '', type: 'Seminar', date: '', time: '', endDate: '', venue: '',
+  description: '', budget: '', status: 'Upcoming', maxParticipants: '',
+  organizer: '', department: '', contactEmail: '', contactPhone: '',
+  registrationDeadline: '', eligibility: 'All Students', entryFee: '',
+  chiefGuest: '', requirements: ''
+};
 
 const Events = () => {
   const [eventList, setEventList] = useState(initialEvents);
@@ -35,18 +41,38 @@ const Events = () => {
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const openAdd = () => { setEditEvent(null); setForm(emptyForm); setDialogOpen(true); };
-  const openEdit = (e) => { setEditEvent(e); setForm({ title: e.title, date: e.date, description: e.description, budget: String(e.budget), status: e.status }); setDialogOpen(true); };
+  const openEdit = (e) => {
+    setEditEvent(e);
+    setForm({
+      title: e.title, type: e.type || 'Seminar', date: e.date, time: e.time || '',
+      endDate: e.endDate || '', venue: e.venue || '', description: e.description,
+      budget: String(e.budget), status: e.status, maxParticipants: String(e.maxParticipants || ''),
+      organizer: e.organizer || '', department: e.department || '', contactEmail: e.contactEmail || '',
+      contactPhone: e.contactPhone || '', registrationDeadline: e.registrationDeadline || '',
+      eligibility: e.eligibility || 'All Students', entryFee: String(e.entryFee || ''),
+      chiefGuest: e.chiefGuest || '', requirements: e.requirements || ''
+    });
+    setDialogOpen(true);
+  };
 
   const handleSave = () => {
     if (!form.title || !form.date) {
       toast({ title: 'Please fill required fields', variant: 'destructive' }); return;
     }
+    const eventData = {
+      title: form.title, type: form.type, date: form.date, time: form.time,
+      endDate: form.endDate, venue: form.venue, description: form.description,
+      budget: Number(form.budget) || 0, status: form.status,
+      maxParticipants: Number(form.maxParticipants) || 0, organizer: form.organizer,
+      department: form.department, contactEmail: form.contactEmail, contactPhone: form.contactPhone,
+      registrationDeadline: form.registrationDeadline, eligibility: form.eligibility,
+      entryFee: Number(form.entryFee) || 0, chiefGuest: form.chiefGuest, requirements: form.requirements
+    };
     if (editEvent) {
-      setEventList(prev => prev.map(e => e.id === editEvent.id ? { ...e, title: form.title, date: form.date, description: form.description, budget: Number(form.budget) || 0, status: form.status } : e));
+      setEventList(prev => prev.map(e => e.id === editEvent.id ? { ...e, ...eventData } : e));
       toast({ title: 'Event Updated', description: form.title });
     } else {
-      const newEvent = { id: String(Date.now()), title: form.title, date: form.date, description: form.description, budget: Number(form.budget) || 0, status: form.status };
-      setEventList(prev => [...prev, newEvent]);
+      setEventList(prev => [...prev, { id: String(Date.now()), ...eventData }]);
       toast({ title: 'Event Created', description: form.title });
     }
     setDialogOpen(false);
@@ -172,10 +198,12 @@ const Events = () => {
             </div>
             <h3 className={styles.cardTitle}>{e.title}</h3>
             <p className={styles.cardDesc}>{e.description}</p>
-            <p className={styles.budget}>Budget: Rs {e.budget.toLocaleString()}</p>
+            <p className={styles.budget}>Budget: Rs {e.budget.toLocaleString()}{e.entryFee ? ` • Entry: Rs ${e.entryFee}` : ' • Free Entry'}</p>
             <div className={styles.cardMeta}>
-              <span className={styles.metaItem}><Users size={12} /> {getEventParticipants(e.id).length} participants</span>
-              <span className={styles.metaItem}><MessageSquare size={12} /> {getEventFeedbacks(e.id).length} feedbacks</span>
+              <span className={styles.metaItem}><Users size={12} /> {getEventParticipants(e.id).length}{e.maxParticipants ? `/${e.maxParticipants}` : ''}</span>
+              {e.venue && <span className={styles.metaItem}><MapPin size={12} /> {e.venue}</span>}
+              {e.type && <span className={styles.metaItem}><GraduationCap size={12} /> {e.type}</span>}
+              {/* <span className={styles.metaItem}><MessageSquare size={12} /> {getEventFeedbacks(e.id).length}</span> */}
             </div>
             <div className={styles.cardActions}>
               <Button size="sm" variant="outline" onClick={() => openView(e)}>
@@ -201,16 +229,69 @@ const Events = () => {
           <Button onClick={handleSave}>{editEvent ? 'Update' : 'Create'}</Button>
         </>}>
         <div className={styles.formFields}>
-          <div className={styles.field}><label>Event Title *</label><Input placeholder="Event name" value={form.title} onChange={e => setField('title', e.target.value)} /></div>
-          <div className={styles.field}><label>Date *</label><Input type="date" value={form.date} onChange={e => setField('date', e.target.value)} /></div>
-          <div className={styles.field}><label>Description</label><Textarea placeholder="Event description" value={form.description} onChange={e => setField('description', e.target.value)} /></div>
-          <div className={styles.field}><label>Budget (Rs)</label><Input type="number" placeholder="0" value={form.budget} onChange={e => setField('budget', e.target.value)} /></div>
-          <div className={styles.field}>
-            <label>Status</label>
-            <Select value={form.status} onChange={e => setField('status', e.target.value)}>
-              <option value="Upcoming">Upcoming</option><option value="Completed">Completed</option>
-            </Select>
+          <div className={styles.formSection}><span className={styles.sectionTitle}>Basic Information</span></div>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label>Event Title *</label><Input placeholder="e.g. Annual Tech Summit 2026" value={form.title} onChange={e => setField('title', e.target.value)} /></div>
+            <div className={styles.field}>
+              <label>Event Type *</label>
+              <Select value={form.type} onChange={e => setField('type', e.target.value)}>
+                <option value="Seminar">Seminar</option><option value="Workshop">Workshop</option>
+                <option value="Competition">Competition</option><option value="Sports">Sports</option>
+                <option value="Cultural">Cultural Event</option><option value="Conference">Conference</option>
+                <option value="Hackathon">Hackathon</option><option value="Exhibition">Exhibition</option>
+                <option value="Fundraiser">Fundraiser</option><option value="Social">Social Gathering</option>
+                <option value="Guest Lecture">Guest Lecture</option><option value="Trip">Educational Trip</option>
+                <option value="Other">Other</option>
+              </Select>
+            </div>
           </div>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label>Start Date *</label><Input type="date" value={form.date} onChange={e => setField('date', e.target.value)} /></div>
+            <div className={styles.field}><label>End Date</label><Input type="date" value={form.endDate} onChange={e => setField('endDate', e.target.value)} /></div>
+            <div className={styles.field}><label>Time</label><Input type="time" value={form.time} onChange={e => setField('time', e.target.value)} /></div>
+          </div>
+          <div className={styles.field}><label>Venue / Location *</label><Input placeholder="e.g. Main Auditorium, Block A" value={form.venue} onChange={e => setField('venue', e.target.value)} /></div>
+          <div className={styles.field}><label>Description</label><Textarea placeholder="Detailed description of the event, agenda, activities..." value={form.description} onChange={e => setField('description', e.target.value)} rows={3} /></div>
+
+          <div className={styles.formSection}><span className={styles.sectionTitle}>Participation & Eligibility</span></div>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label>Max Participants</label><Input type="number" placeholder="e.g. 100" value={form.maxParticipants} onChange={e => setField('maxParticipants', e.target.value)} /></div>
+            <div className={styles.field}>
+              <label>Eligibility</label>
+              <Select value={form.eligibility} onChange={e => setField('eligibility', e.target.value)}>
+                <option value="All Students">All Students</option><option value="Society Members Only">Society Members Only</option>
+                <option value="Department Specific">Department Specific</option><option value="Open for All">Open for All (Including Outsiders)</option>
+              </Select>
+            </div>
+          </div>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label>Registration Deadline</label><Input type="date" value={form.registrationDeadline} onChange={e => setField('registrationDeadline', e.target.value)} /></div>
+            <div className={styles.field}><label>Entry Fee (Rs)</label><Input type="number" placeholder="0 for free" value={form.entryFee} onChange={e => setField('entryFee', e.target.value)} /></div>
+          </div>
+
+          <div className={styles.formSection}><span className={styles.sectionTitle}>Organizer & Contact</span></div>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label>Organizer / In-Charge</label><Input placeholder="e.g. Dr. Ahmed Khan" value={form.organizer} onChange={e => setField('organizer', e.target.value)} /></div>
+            <div className={styles.field}><label>Department</label><Input placeholder="e.g. Computer Science" value={form.department} onChange={e => setField('department', e.target.value)} /></div>
+          </div>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label>Contact Email</label><Input type="email" placeholder="organizer@university.edu" value={form.contactEmail} onChange={e => setField('contactEmail', e.target.value)} /></div>
+            <div className={styles.field}><label>Contact Phone</label><Input type="tel" placeholder="+92 300 1234567" value={form.contactPhone} onChange={e => setField('contactPhone', e.target.value)} /></div>
+          </div>
+
+          <div className={styles.formSection}><span className={styles.sectionTitle}>Budget & Additional Info</span></div>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label>Total Budget (Rs)</label><Input type="number" placeholder="0" value={form.budget} onChange={e => setField('budget', e.target.value)} /></div>
+            <div className={styles.field}>
+              <label>Status</label>
+              <Select value={form.status} onChange={e => setField('status', e.target.value)}>
+                <option value="Upcoming">Upcoming</option><option value="Ongoing">Ongoing</option>
+                <option value="Completed">Completed</option><option value="Cancelled">Cancelled</option>
+              </Select>
+            </div>
+          </div>
+          <div className={styles.field}><label>Chief Guest / Speaker</label><Input placeholder="e.g. Prof. Sarah Ali" value={form.chiefGuest} onChange={e => setField('chiefGuest', e.target.value)} /></div>
+          <div className={styles.field}><label>Special Requirements</label><Textarea placeholder="Equipment, resources, permissions needed..." value={form.requirements} onChange={e => setField('requirements', e.target.value)} rows={2} /></div>
         </div>
       </Modal>
 
@@ -233,10 +314,36 @@ const Events = () => {
             {/* Details Tab */}
             {detailTab === 'details' && (
               <div className={styles.formFields}>
-                <div className={styles.field}><label>Date</label><p>{viewEvent.date}</p></div>
-                <div className={styles.field}><label>Status</label><Badge variant={viewEvent.status === 'Upcoming' ? 'default' : 'secondary'}>{viewEvent.status}</Badge></div>
-                <div className={styles.field}><label>Budget</label><p>Rs {viewEvent.budget.toLocaleString()}</p></div>
+                <div className={styles.fieldRow}>
+                  <div className={styles.field}><label>Event Type</label><p>{viewEvent.type || 'N/A'}</p></div>
+                  <div className={styles.field}><label>Status</label><Badge variant={viewEvent.status === 'Upcoming' ? 'default' : viewEvent.status === 'Cancelled' ? 'destructive' : 'secondary'}>{viewEvent.status}</Badge></div>
+                </div>
+                <div className={styles.fieldRow}>
+                  <div className={styles.field}><label>Start Date</label><p>{viewEvent.date}</p></div>
+                  {viewEvent.endDate && <div className={styles.field}><label>End Date</label><p>{viewEvent.endDate}</p></div>}
+                  {viewEvent.time && <div className={styles.field}><label>Time</label><p>{viewEvent.time}</p></div>}
+                </div>
+                {viewEvent.venue && <div className={styles.field}><label>Venue</label><p>{viewEvent.venue}</p></div>}
+                <div className={styles.fieldRow}>
+                  <div className={styles.field}><label>Budget</label><p>Rs {viewEvent.budget.toLocaleString()}</p></div>
+                  <div className={styles.field}><label>Entry Fee</label><p>{viewEvent.entryFee ? `Rs ${viewEvent.entryFee}` : 'Free'}</p></div>
+                  <div className={styles.field}><label>Max Participants</label><p>{viewEvent.maxParticipants || 'Unlimited'}</p></div>
+                </div>
+                <div className={styles.fieldRow}>
+                  <div className={styles.field}><label>Eligibility</label><p>{viewEvent.eligibility || 'All Students'}</p></div>
+                  {viewEvent.registrationDeadline && <div className={styles.field}><label>Reg. Deadline</label><p>{viewEvent.registrationDeadline}</p></div>}
+                </div>
+                {viewEvent.organizer && <div className={styles.fieldRow}>
+                  <div className={styles.field}><label>Organizer</label><p>{viewEvent.organizer}</p></div>
+                  {viewEvent.department && <div className={styles.field}><label>Department</label><p>{viewEvent.department}</p></div>}
+                </div>}
+                {(viewEvent.contactEmail || viewEvent.contactPhone) && <div className={styles.fieldRow}>
+                  {viewEvent.contactEmail && <div className={styles.field}><label>Email</label><p>{viewEvent.contactEmail}</p></div>}
+                  {viewEvent.contactPhone && <div className={styles.field}><label>Phone</label><p>{viewEvent.contactPhone}</p></div>}
+                </div>}
+                {viewEvent.chiefGuest && <div className={styles.field}><label>Chief Guest / Speaker</label><p>{viewEvent.chiefGuest}</p></div>}
                 <div className={styles.field}><label>Description</label><p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{viewEvent.description}</p></div>
+                {viewEvent.requirements && <div className={styles.field}><label>Requirements</label><p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{viewEvent.requirements}</p></div>}
               </div>
             )}
 
@@ -329,7 +436,7 @@ const Events = () => {
                         <div className={styles.fbHeader}>
                           <span className={styles.fbName}>{f.memberName}</span>
                           <div className={styles.fbStars}>
-                            {[1,2,3,4,5].map(s => (
+                            {[1, 2, 3, 4, 5].map(s => (
                               <Star key={s} size={14} fill={s <= f.rating ? 'var(--warning)' : 'none'} color={s <= f.rating ? 'var(--warning)' : 'var(--text-light)'} />
                             ))}
                           </div>
