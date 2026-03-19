@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, CalendarDays, Megaphone, Image, Send, Users, ArrowRight, LogIn, Heart, AlertTriangle, DollarSign } from 'lucide-react';
+import { GraduationCap, CalendarDays, Megaphone, Image, Send, Users, ArrowRight, LogIn, Heart, AlertTriangle, DollarSign, Info } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
 import Select from '@/components/ui/Select.jsx';
 import Modal from '@/components/ui/Modal.jsx';
-import { events, announcements, galleryImages } from '@/data/mockData.js';
+import { galleryImages } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './StudentPortal.module.css';
 
@@ -15,17 +15,58 @@ const StudentPortal = () => {
   const { toast } = useToast();
   const [requestOpen, setRequestOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [participateOpen, setParticipateOpen] = useState(false);
-  const [participateEvent, setParticipateEvent] = useState(null);
-  const [participateForm, setParticipateForm] = useState({ name: '', role: 'Volunteer' });
   const [fundOpen, setFundOpen] = useState(false);
   const [fundForm, setFundForm] = useState({ name: '', email: '', amount: '', purpose: '', description: '' });
   const [form, setForm] = useState({ title: '', name: '', type: '', eventId: '' });
   const [report, setReport] = useState({ name: '', subject: '', message: '' });
 
-  const upcomingEvents = events.filter(e => e.status === 'Upcoming');
+  // Dynamic state for upcoming events
+  const [announcements, setAnnouncements] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [participateOpen, setParticipateOpen] = useState(false);
+  const [participateEvent, setParticipateEvent] = useState(null);
+
+  // UPDATED: Full participation form state
+  const [participateForm, setParticipateForm] = useState({
+    name: '', rollNo: '', department: '', contact: '', role: 'Attendee'
+  });
+
   const recentAnnouncements = announcements.slice(0, 3);
   const previewPhotos = galleryImages.slice(0, 4);
+
+  // FETCH DYNAMIC EVENTS WITH DATE CHECK
+  // FETCH DYNAMIC EVENTS & ANNOUNCEMENTS
+  useEffect(() => {
+    Promise.all([
+      fetch('http://localhost:5000/api/events/records'),
+      fetch('http://localhost:5000/api/announcements/all') // <-- New fetch call
+    ])
+      .then(async ([evRes, annRes]) => {
+        const evData = await evRes.json();
+        const annData = await annRes.json();
+
+        // Handle Events
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const upcoming = evData
+          .filter(e => {
+            if (e.status !== 'Upcoming') return false;
+            const dateToCheck = e.endDate || e.date;
+            if (dateToCheck) {
+              const eventDate = new Date(dateToCheck);
+              if (eventDate < today) return false;
+            }
+            return true;
+          })
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        setUpcomingEvents(upcoming);
+
+        // Handle Announcements (Just grab the 3 newest ones)
+        setAnnouncements(annData.slice(0, 3));
+      })
+      .catch(err => console.error("Error fetching data:", err));
+  }, []);
 
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -39,8 +80,10 @@ const StudentPortal = () => {
     if (form.type !== 'Event Participation' && !form.title) {
       toast({ title: 'Please enter a request title', variant: 'destructive' }); return;
     }
-    const selectedEvent = form.type === 'Event Participation' ? events.find(e => e.id === form.eventId) : null;
+
+    const selectedEvent = form.type === 'Event Participation' ? upcomingEvents.find(e => e._id === form.eventId) : null;
     const requestTitle = form.type === 'Event Participation' ? `Participation Request: ${selectedEvent?.title}` : form.title;
+
     toast({ title: 'Request Submitted!', description: `"${requestTitle}" has been sent to the admin for approval.` });
     setRequestOpen(false);
     setForm({ title: '', name: '', type: '', eventId: '' });
@@ -120,13 +163,20 @@ const StudentPortal = () => {
           <h2 className={styles.sectionTitle}>Upcoming Events</h2>
           <div className={styles.eventGrid}>
             {upcomingEvents.map(e => (
-              <div key={e.id} className={styles.eventCard}>
-                <span className={styles.eventDate}><CalendarDays size={12} /> {e.date}</span>
+              <div key={e._id} className={styles.eventCard}>
+                <span className={styles.eventDate}>
+                  <CalendarDays size={12} />
+                  {e.date ? new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
+                </span>
                 <h3 className={styles.eventName}>{e.title}</h3>
-                <p className={styles.eventDesc}>{e.description}</p>
+                <p className={styles.eventDesc}>{e.description || 'Join us for this exciting event!'}</p>
                 <div className={styles.eventFooter}>
-                  <span className={styles.eventBudget}>Budget: Rs {e.budget.toLocaleString()}</span>
-                  <Button size="sm" onClick={() => { setParticipateEvent(e); setParticipateForm({ name: '', role: 'Volunteer' }); setParticipateOpen(true); }}>
+                  <span className={styles.eventBudget}>Fee: {e.entryFee ? `Rs ${e.entryFee}` : 'Free'}</span>
+                  <Button size="sm" onClick={() => {
+                    setParticipateEvent(e);
+                    setParticipateForm({ name: '', rollNo: '', department: '', contact: '', role: 'Attendee' });
+                    setParticipateOpen(true);
+                  }}>
                     <Users size={14} /> Participate
                   </Button>
                 </div>
@@ -232,19 +282,19 @@ const StudentPortal = () => {
               <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Select Event *</label>
               <Select value={form.eventId} onChange={e => setField('eventId', e.target.value)}>
                 <option value="">Choose an event</option>
-                {events.map(ev => (
-                  <option key={ev.id} value={ev.id}>{ev.title} — {ev.date} ({ev.status})</option>
+                {upcomingEvents.map(ev => (
+                  <option key={ev._id} value={ev._id}>{ev.title} — {new Date(ev.date).toLocaleDateString()} ({ev.status})</option>
                 ))}
               </Select>
               {form.eventId && (() => {
-                const ev = events.find(e => e.id === form.eventId);
+                const ev = upcomingEvents.find(e => e._id === form.eventId);
                 return ev ? (
                   <div style={{ background: 'var(--bg-card, #f8fafc)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, padding: 12, marginTop: 4 }}>
                     <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{ev.title}</div>
                     <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted, #64748b)', marginTop: 4 }}>{ev.description}</div>
                     <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>
-                      <span>📅 {ev.date}</span>
-                      <span>💰 Rs {ev.budget.toLocaleString()}</span>
+                      <span>📅 {new Date(ev.date).toLocaleDateString()}</span>
+                      <span>💰 Rs {ev.budget?.toLocaleString() || 0}</span>
                       <span>📌 {ev.status}</span>
                     </div>
                   </div>
@@ -265,13 +315,28 @@ const StudentPortal = () => {
       <Modal open={reportOpen} onClose={() => setReportOpen(false)} title="Report an Issue"
         footer={<>
           <Button variant="outline" onClick={() => setReportOpen(false)}>Cancel</Button>
-          <Button onClick={() => {
+          <Button onClick={async () => {
             if (!report.name || !report.subject || !report.message) {
               toast({ title: 'Please fill all required fields', variant: 'destructive' }); return;
             }
-            toast({ title: 'Report Submitted', description: 'Your report has been sent to the Society President.' });
-            setReportOpen(false);
-            setReport({ name: '', subject: '', message: '' });
+
+            try {
+              const res = await fetch('http://localhost:5000/api/reports/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(report)
+              });
+
+              if (res.ok) {
+                toast({ title: 'Report Submitted', description: 'Your report has been sent to the Society President.' });
+                setReportOpen(false);
+                setReport({ name: '', subject: '', message: '' });
+              } else {
+                toast({ title: 'Failed to submit report', variant: 'destructive' });
+              }
+            } catch (error) {
+              toast({ title: 'Server error', description: 'Could not connect to the server.', variant: 'destructive' });
+            }
           }}>Send Report</Button>
         </>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -293,26 +358,86 @@ const StudentPortal = () => {
         </div>
       </Modal>
 
-      {/* Participate Modal */}
+      {/* UPGRADED PARTICIPATE MODAL */}
       <Modal open={participateOpen} onClose={() => setParticipateOpen(false)} title={`Join: ${participateEvent?.title || ''}`}
         footer={<>
           <Button variant="outline" onClick={() => setParticipateOpen(false)}>Cancel</Button>
-          <Button onClick={() => {
-            if (!participateForm.name) { toast({ title: 'Please enter your name', variant: 'destructive' }); return; }
-            toast({ title: 'Participation Confirmed!', description: `${participateForm.name} joined as ${participateForm.role}` });
-            setParticipateOpen(false);
-          }}>Confirm</Button>
+          <Button onClick={async () => {
+            if (!participateForm.name || !participateForm.department) {
+              toast({ title: 'Please fill all required fields', variant: 'destructive' }); return;
+            }
+
+            try {
+              // ALL NEW FIELDS INCLUDED HERE!
+              const res = await fetch('http://localhost:5000/api/participants/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  studentName: participateForm.name,
+                  rollNo: participateForm.rollNo,
+                  department: participateForm.department,
+                  contact: participateForm.contact,
+                  eventId: participateEvent._id,
+                  eventTitle: participateEvent.title,
+                  role: participateForm.role
+                })
+              });
+
+              if (res.ok) {
+                toast({ title: 'Request Sent!', description: `Your request to join as ${participateForm.role} is pending approval.` });
+                setParticipateOpen(false);
+              } else {
+                toast({ title: 'Request Failed', variant: 'destructive' });
+              }
+            } catch (error) {
+              toast({ title: 'Server Error', variant: 'destructive' });
+            }
+          }}>Confirm Participation</Button>
         </>}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Your Name *</label>
-            <Input placeholder="Full name" value={participateForm.name} onChange={e => setParticipateForm(p => ({ ...p, name: e.target.value }))} />
+
+        {participateEvent && (
+          <div style={{ background: 'var(--primary-light)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--primary)', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+            <Info size={20} color="var(--primary)" style={{ marginTop: '2px' }} />
+            <div style={{ fontSize: '0.875rem' }}>
+              <div style={{ fontWeight: 600, color: 'var(--primary-dark)', marginBottom: '4px' }}>Event Requirements</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', color: 'var(--text-main)' }}>
+                <span><strong>Eligibility:</strong> {participateEvent.eligibility || 'All Students'}</span>
+                <span><strong>Entry Fee:</strong> {participateEvent.entryFee ? `Rs ${participateEvent.entryFee}` : 'Free'}</span>
+                <span><strong>Deadline:</strong> {participateEvent.registrationDeadline ? new Date(participateEvent.registrationDeadline).toLocaleDateString() : 'N/A'}</span>
+                <span><strong>Max Capacity:</strong> {participateEvent.maxParticipants || 'Unlimited'}</span>
+              </div>
+            </div>
           </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Full Name *</label>
+              <Input placeholder="Ali Hassan" value={participateForm.name} onChange={e => setParticipateForm(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Roll Number</label>
+              <Input placeholder="e.g. FA21-BSE-123" value={participateForm.rollNo} onChange={e => setParticipateForm(p => ({ ...p, rollNo: e.target.value }))} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Department *</label>
+              <Input placeholder="e.g. Software Engineering" value={participateForm.department} onChange={e => setParticipateForm(p => ({ ...p, department: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Contact Info</label>
+              <Input placeholder="Phone or Email" value={participateForm.contact} onChange={e => setParticipateForm(p => ({ ...p, contact: e.target.value }))} />
+            </div>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Role</label>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Role Requested</label>
             <Select value={participateForm.role} onChange={e => setParticipateForm(p => ({ ...p, role: e.target.value }))}>
-              <option value="Volunteer">Volunteer</option>
               <option value="Attendee">Attendee</option>
+              <option value="Volunteer">Volunteer</option>
               <option value="Organizer">Organizer</option>
               <option value="Speaker">Speaker</option>
             </Select>
@@ -350,12 +475,9 @@ const StudentPortal = () => {
                 setFundOpen(false);
                 setFundForm({ name: '', email: '', amount: '', purpose: '', description: '' });
               } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.error("Backend Error Data:", errorData);
                 toast({ title: 'Submission Failed', description: 'Could not submit your appeal.', variant: 'destructive' });
               }
             } catch (error) {
-              console.error("Submission Error:", error);
               toast({ title: 'Server Error', description: 'Failed to connect to the server.', variant: 'destructive' });
             }
           }}>Submit Appeal</Button>

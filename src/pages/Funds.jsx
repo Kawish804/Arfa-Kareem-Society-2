@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Eye, FileText, X, Filter, CheckCircle, Clock } from 'lucide-react';
+import { Wallet, Eye, FileText, X, Filter, CheckCircle, Clock, TrendingUp } from 'lucide-react';
 import PageHeader from '../components/PageHeader.jsx';
 import StatCard from '../components/StatCard.jsx';
 import Button from '../components/ui/Button.jsx';
@@ -10,7 +10,6 @@ import Modal from '../components/ui/Modal.jsx';
 import { useToast } from '../components/Toast/ToastProvider.jsx';
 import styles from './Funds.module.css';
 
-// Empty form tracks rollNo
 const emptyForm = { 
   memberName: '', 
   rollNo: '',
@@ -25,30 +24,38 @@ const emptyForm = {
 
 const Funds = () => {
   const [fundList, setFundList] = useState([]);
+  const [expenseList, setExpenseList] = useState([]); // NEW: State to hold expenses
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [previewReceipt, setPreviewReceipt] = useState(null);
   
   const [timeFilter, setTimeFilter] = useState('All'); 
-  const [statusFilter, setStatusFilter] = useState('All'); // NEW: Tracks which card is clicked
+  const [statusFilter, setStatusFilter] = useState('All'); 
   const { toast } = useToast();
 
   useEffect(() => {
+    // Fetch Funds
     fetch('http://localhost:5000/api/fund-collections/records')
       .then(res => res.json())
       .then(data => setFundList(data))
       .catch(err => console.error("Error fetching funds:", err));
+
+    // NEW: Fetch Expenses
+    fetch('http://localhost:5000/api/expenses/records')
+      .then(res => res.json())
+      .then(data => setExpenseList(data))
+      .catch(err => console.error("Error fetching expenses:", err));
   }, []);
 
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  // 1. FILTER BY TIME (Used to calculate the Stat Cards)
-  const getTimeFilteredFunds = () => {
-    if (timeFilter === 'All') return fundList;
+  // Generic Time Filter Logic for both Funds and Expenses
+  const filterByTime = (list) => {
+    if (timeFilter === 'All') return list;
 
     const today = new Date();
     
-    return fundList.filter(record => {
+    return list.filter(record => {
       if (!record.date) return false;
       const recordDate = new Date(record.date);
 
@@ -74,18 +81,24 @@ const Funds = () => {
     });
   };
 
-  const timeFilteredFunds = getTimeFilteredFunds();
+  // Apply filters
+  const timeFilteredFunds = filterByTime(fundList);
+  const timeFilteredExpenses = filterByTime(expenseList); // Filter expenses by the same time period
   
-  // Calculate stats based ONLY on the time filter (so cards don't change numbers when clicked)
+  // Fund Calculations
   const totalExpected = timeFilteredFunds.reduce((s, f) => s + (Number(f.amount) || 0), 0);
   const totalCollected = timeFilteredFunds.filter(f => f.status === 'Paid').reduce((s, f) => s + (Number(f.amount) || 0), 0);
   const totalPending = timeFilteredFunds.filter(f => f.status === 'Unpaid').reduce((s, f) => s + (Number(f.amount) || 0), 0);
   
+  // NEW: Expense & Balance Calculations
+  const totalExpenses = timeFilteredExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const availableBalance = totalCollected - totalExpenses;
+
   const paidCount = timeFilteredFunds.filter(f => f.status === 'Paid').length;
   const unpaidCount = timeFilteredFunds.filter(f => f.status === 'Unpaid').length;
   const totalCount = timeFilteredFunds.length;
 
-  // 2. FILTER BY STATUS (Used to display the Table)
+  // Filter for the table display
   const displayFunds = timeFilteredFunds.filter(f => {
     if (statusFilter === 'All') return true;
     return f.status === statusFilter;
@@ -155,7 +168,7 @@ const Funds = () => {
             key={filterOption} 
             size="sm" 
             variant={timeFilter === filterOption ? 'primary' : 'outline'} 
-            onClick={() => { setTimeFilter(filterOption); setStatusFilter('All'); }} // Reset status when time changes
+            onClick={() => { setTimeFilter(filterOption); setStatusFilter('All'); }} 
           >
             {filterOption}
           </Button>
@@ -166,8 +179,8 @@ const Funds = () => {
         Click on a card below to filter the table by status.
       </p>
 
-      {/* --- UPDATED: Clickable Three-Card Summary Section --- */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+      {/* --- UPDATED: Four-Card Summary Section (Includes Available Balance) --- */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
         
         <div onClick={() => setStatusFilter('All')} style={{ cursor: 'pointer', transition: '0.2s', opacity: statusFilter === 'All' ? 1 : 0.5 }}>
           <StatCard 
@@ -189,16 +202,25 @@ const Funds = () => {
 
         <div onClick={() => setStatusFilter('Unpaid')} style={{ cursor: 'pointer', transition: '0.2s', opacity: statusFilter === 'Unpaid' ? 1 : 0.5 }}>
           <StatCard 
-            title={`Remaining Pending (${timeFilter})`} 
+            title={`Pending Collection (${timeFilter})`} 
             value={`Rs ${totalPending.toLocaleString()}`} 
             icon={Clock}
             description={`${unpaidCount} students still pending`} 
           />
         </div>
 
+        {/* NEW CARD: Available Balance (Not clickable as it doesn't filter the fund table) */}
+        <div>
+          <StatCard 
+            title={`Available Balance (${timeFilter})`} 
+            value={`Rs ${availableBalance.toLocaleString()}`} 
+            icon={TrendingUp}
+            description={`Collected minus Rs ${totalExpenses.toLocaleString()} in expenses`} 
+          />
+        </div>
+
       </div>
 
-      {/* --- NEW: Table Header with Filter Indication --- */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <h3 style={{ margin: 0, fontSize: '1.125rem', color: 'var(--text-main)', fontWeight: 600 }}>
           {statusFilter === 'All' ? 'All Records' : `${statusFilter} Records`}

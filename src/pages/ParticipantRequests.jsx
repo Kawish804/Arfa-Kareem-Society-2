@@ -1,25 +1,24 @@
-import { useState } from 'react';
-import { Check, X, Users, CalendarDays } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Check, X, Users, CalendarDays, Trash2 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader.jsx';
 import Button from '@/components/ui/Button.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import Modal from '@/components/ui/Modal.jsx';
-import { events } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './ParticipantRequests.module.css';
 
-const initialParticipantRequests = [
-  { id: '1', studentName: 'Ali Hassan', eventId: '1', eventTitle: 'Tech Talk 2024', role: 'Attendee', date: '2024-03-10', status: 'Pending' },
-  { id: '2', studentName: 'Sara Khan', eventId: '2', eventTitle: 'Career Fair', role: 'Volunteer', date: '2024-03-11', status: 'Pending' },
-  { id: '3', studentName: 'Usman Tariq', eventId: '1', eventTitle: 'Tech Talk 2024', role: 'Speaker', date: '2024-03-09', status: 'Approved' },
-  { id: '4', studentName: 'Fatima Noor', eventId: '3', eventTitle: 'Hackathon 2024', role: 'Organizer', date: '2024-03-12', status: 'Pending' },
-  { id: '5', studentName: 'Ahmed Raza', eventId: '2', eventTitle: 'Career Fair', role: 'Attendee', date: '2024-03-08', status: 'Rejected' },
-];
-
 const ParticipantRequests = () => {
-  const [requests, setRequests] = useState(initialParticipantRequests);
+  const [requests, setRequests] = useState([]); // Dynamic empty array
   const [viewRequest, setViewRequest] = useState(null);
   const { toast } = useToast();
+
+  // FETCH DYNAMIC DATA
+  useEffect(() => {
+    fetch('http://localhost:5000/api/participants/all')
+      .then(res => res.json())
+      .then(data => setRequests(data))
+      .catch(err => console.error("Fetch error:", err));
+  }, []);
 
   const statusVariant = (s) => s === 'Approved' ? 'success' : s === 'Rejected' ? 'destructive' : 'outline';
 
@@ -27,16 +26,33 @@ const ParticipantRequests = () => {
   const approvedCount = requests.filter(r => r.status === 'Approved').length;
   const rejectedCount = requests.filter(r => r.status === 'Rejected').length;
 
-  const handleApprove = (r) => {
-    setRequests(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Approved' } : x));
-    toast({ title: 'Participation Approved', description: `${r.studentName} approved for ${r.eventTitle}` });
-    setViewRequest(null);
+  const updateStatus = async (r, newStatus) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/participants/${r._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (res.ok) {
+        setRequests(prev => prev.map(x => x._id === r._id ? { ...x, status: newStatus } : x));
+        toast({ title: `Participation ${newStatus}`, description: `${r.studentName} is ${newStatus.toLowerCase()} for ${r.eventTitle}` });
+        setViewRequest(null);
+      }
+    } catch (error) {
+      toast({ title: 'Server Error', variant: 'destructive' });
+    }
   };
 
-  const handleReject = (r) => {
-    setRequests(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Rejected' } : x));
-    toast({ title: 'Participation Rejected', description: `${r.studentName} rejected for ${r.eventTitle}`, variant: 'destructive' });
-    setViewRequest(null);
+  const deleteRequest = async (id) => {
+    if (!window.confirm("Delete this request permanently?")) return;
+    try {
+      await fetch(`http://localhost:5000/api/participants/${id}`, { method: 'DELETE' });
+      setRequests(prev => prev.filter(r => r._id !== id));
+      toast({ title: 'Request Deleted' });
+    } catch (error) {
+      toast({ title: 'Delete Failed', variant: 'destructive' });
+    }
   };
 
   return (
@@ -64,8 +80,11 @@ const ParticipantRequests = () => {
           </thead>
           <tbody>
             {requests.map(r => (
-              <tr key={r.id}>
-                <td className={styles.bold}>{r.studentName}</td>
+              <tr key={r._id}>
+                <td>
+                  <div className={styles.bold}>{r.studentName}</div>
+                  <div className={styles.muted} style={{ fontSize: '0.75rem' }}>{r.department} {r.rollNo ? `(${r.rollNo})` : ''}</div>
+                </td>
                 <td className={`${styles.hideSmall} ${styles.muted}`}>{r.eventTitle}</td>
                 <td className={styles.hideMd}><Badge variant="secondary">{r.role}</Badge></td>
                 <td className={`${styles.hideMd} ${styles.muted}`}>{r.date}</td>
@@ -73,20 +92,22 @@ const ParticipantRequests = () => {
                 <td className={styles.actionsCell}>
                   {r.status === 'Pending' ? (
                     <div className={styles.actionBtns}>
-                      <Button size="sm" variant="outline" onClick={() => handleApprove(r)}>
-                        <Check size={14} /> Approve
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleReject(r)}>
-                        <X size={14} /> Reject
-                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => updateStatus(r, 'Approved')}><Check size={14} /></Button>
+                      <Button size="sm" variant="outline" onClick={() => updateStatus(r, 'Rejected')}><X size={14} /></Button>
                       <Button size="sm" variant="outline" onClick={() => setViewRequest(r)}>View</Button>
                     </div>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => setViewRequest(r)}>View</Button>
+                    <div className={styles.actionBtns}>
+                      <Button size="sm" variant="outline" onClick={() => setViewRequest(r)}>View</Button>
+                      <Button size="sm" variant="ghost" onClick={() => deleteRequest(r._id)}>
+                        <Trash2 size={14} color="var(--destructive)" />
+                      </Button>
+                    </div>
                   )}
                 </td>
               </tr>
             ))}
+            {requests.length === 0 && <tr><td colSpan="6" style={{textAlign: 'center', padding: '2rem'}}>No requests found.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -94,12 +115,15 @@ const ParticipantRequests = () => {
       <Modal open={!!viewRequest} onClose={() => setViewRequest(null)} title="Participation Request Details"
         footer={viewRequest?.status === 'Pending' ? <>
           <Button variant="outline" onClick={() => setViewRequest(null)}>Close</Button>
-          <Button variant="outline" onClick={() => handleReject(viewRequest)}><X size={14} /> Reject</Button>
-          <Button onClick={() => handleApprove(viewRequest)}><Check size={14} /> Approve</Button>
+          <Button variant="outline" onClick={() => updateStatus(viewRequest, 'Rejected')}><X size={14} /> Reject</Button>
+          <Button onClick={() => updateStatus(viewRequest, 'Approved')}><Check size={14} /> Approve</Button>
         </> : <Button variant="outline" onClick={() => setViewRequest(null)}>Close</Button>}>
         {viewRequest && (
           <div className={styles.detailCard}>
             <div className={styles.detailRow}><Users size={16} /> <strong>Student:</strong> {viewRequest.studentName}</div>
+            <div className={styles.detailRow} style={{ paddingLeft: '24px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+              {viewRequest.department} • {viewRequest.rollNo || 'No Roll No'} • {viewRequest.contact || 'No Contact'}
+            </div>
             <div className={styles.detailRow}><CalendarDays size={16} /> <strong>Event:</strong> {viewRequest.eventTitle}</div>
             <div className={styles.detailRow}><strong>Role:</strong> <Badge variant="secondary">{viewRequest.role}</Badge></div>
             <div className={styles.detailRow}><strong>Date:</strong> {viewRequest.date}</div>

@@ -1,4 +1,7 @@
 const User = require('../models/User');
+const FundCollection = require('../models/FundCollection');
+const Expense = require('../models/Expense');
+const Event = require('../models/Event'); // <-- Imported here
 const nodemailer = require('nodemailer');
 
 // Setup Nodemailer transporter
@@ -15,7 +18,6 @@ const transporter = nodemailer.createTransport({
 // GET PENDING REQUESTS
 exports.getPendingRequests = async (req, res) => {
     try {
-        // Find all users who are not approved yet
         const pendingUsers = await User.find({ isApproved: false }).select('-password');
         res.status(200).json(pendingUsers);
     } catch (error) {
@@ -29,7 +31,6 @@ exports.approveRequest = async (req, res) => {
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ message: "User not found" });
 
-        // Generate a Membership ID (e.g., AKS-2026-1234)
         const randomNum = Math.floor(1000 + Math.random() * 9000);
         const membershipId = `AKS-${new Date().getFullYear()}-${randomNum}`;
 
@@ -37,7 +38,6 @@ exports.approveRequest = async (req, res) => {
         user.membershipId = membershipId;
         await user.save();
 
-        // Send Email
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: user.email,
@@ -52,7 +52,6 @@ exports.approveRequest = async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
-
         res.status(200).json({ message: "Approved successfully and email sent!" });
     } catch (error) {
         res.status(500).json({ error: "Failed to approve request." });
@@ -62,33 +61,70 @@ exports.approveRequest = async (req, res) => {
 // REJECT REQUEST
 exports.rejectRequest = async (req, res) => {
     try {
-        // Delete the user from the database if rejected
         await User.findByIdAndDelete(req.params.id);
         res.status(200).json({ message: "Request rejected and removed." });
     } catch (error) {
         res.status(500).json({ error: "Failed to reject request." });
     }
 };
+
+// GET APPROVED MEMBERS
 exports.getApprovedMembers = async (req, res) => {
     try {
-        // Now it ONLY fetches users who have completed the final signup step
         const members = await User.find({ isApproved: true, isActive: true }).select('-password');
         res.status(200).json(members);
     } catch (error) {
         res.status(500).json({ error: "Failed to fetch members." });
     }
 };
+
 // GET DASHBOARD STATS
 exports.getDashboardStats = async (req, res) => {
     try {
-        // Fetch real data from your User model
+        // 1. Basic Stats
         const totalMembers = await User.countDocuments({ isApproved: true, isActive: true });
         const pendingRequests = await User.countDocuments({ isApproved: false });
 
-        // TODO: Replace these with real database queries once you create Funds/Events models
-        const totalFunds = 0;
-        const totalExpenses = 0;
-        const activeEvents = 0;
+        const funds = await FundCollection.find({ status: 'Paid' });
+        const totalFunds = funds.reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+
+        const expenses = await Expense.find();
+        const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+        // Calculate real Active Events (INSIDE the async function!)
+        const activeEvents = await Event.countDocuments({ 
+            status: { $in: ['Upcoming', 'Ongoing'] } 
+        });
+
+        // 2. CHART DATA AGGREGATION
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        
+        let fundChart = monthNames.map(month => ({ month, amount: 0 }));
+        let expenseChart = monthNames.map(month => ({ month, amount: 0 }));
+
+        funds.forEach(fund => {
+            if (fund.date) {
+                const date = new Date(fund.date);
+                const monthIndex = date.getMonth(); 
+                if (!isNaN(monthIndex)) {
+                    fundChart[monthIndex].amount += (Number(fund.amount) || 0);
+                }
+            }
+        });
+
+        expenses.forEach(exp => {
+            if (exp.date) {
+                const date = new Date(exp.date);
+                const monthIndex = date.getMonth();
+                if (!isNaN(monthIndex)) {
+                    expenseChart[monthIndex].amount += (Number(exp.amount) || 0);
+                }
+            }
+        });
+
+        const currentMonthIndex = new Date().getMonth();
+        fundChart = fundChart.slice(0, currentMonthIndex + 1);
+        expenseChart = expenseChart.slice(0, currentMonthIndex + 1);
 
         res.status(200).json({
             stats: {
@@ -96,7 +132,11 @@ exports.getDashboardStats = async (req, res) => {
                 totalFunds,
                 totalExpenses,
                 activeEvents,
-                pendingRequests
+                pendingRequests,
+                chartData: {
+                    fundCollection: fundChart,
+                    expenses: expenseChart
+                }
             }
         });
     } catch (error) {

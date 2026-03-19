@@ -1,47 +1,83 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Edit, Trash2, CalendarDays, User } from 'lucide-react';
 import PageHeader from '@/components/PageHeader.jsx';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
 import Modal from '@/components/ui/Modal.jsx';
-import { announcements as initialAnnouncements } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './Announcements.module.css';
 
 const emptyForm = { title: '', description: '' };
 
 const Announcements = () => {
-  const [announcementList, setAnnouncementList] = useState(initialAnnouncements);
+  const [announcementList, setAnnouncementList] = useState([]); // Dynamic state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editAnn, setEditAnn] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const { toast } = useToast();
+
+  // FETCH ANNOUNCEMENTS FROM DATABASE
+  useEffect(() => {
+    fetch('http://localhost:5000/api/announcements/all')
+      .then(res => res.json())
+      .then(data => setAnnouncementList(data))
+      .catch(err => console.error("Error fetching announcements:", err));
+  }, []);
 
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const openAdd = () => { setEditAnn(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (a) => { setEditAnn(a); setForm({ title: a.title, description: a.description }); setDialogOpen(true); };
 
-  const handleSave = () => {
+  // CREATE OR UPDATE ANNOUNCEMENT
+  const handleSave = async () => {
     if (!form.title || !form.description) {
       toast({ title: 'Please fill all fields', variant: 'destructive' }); return;
     }
-    if (editAnn) {
-      setAnnouncementList(prev => prev.map(a => a.id === editAnn.id ? { ...a, title: form.title, description: form.description } : a));
-      toast({ title: 'Announcement Updated' });
-    } else {
-      const newAnn = { id: String(Date.now()), title: form.title, description: form.description, postedDate: new Date().toISOString().split('T')[0], postedBy: 'Admin' };
-      setAnnouncementList(prev => [newAnn, ...prev]);
-      toast({ title: 'Announcement Created' });
+    
+    try {
+      const url = editAnn 
+        ? `http://localhost:5000/api/announcements/${editAnn._id}` 
+        : 'http://localhost:5000/api/announcements/create';
+      const method = editAnn ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: form.title, description: form.description })
+      });
+
+      if (res.ok) {
+        const savedData = await res.json();
+        
+        if (editAnn) {
+          setAnnouncementList(prev => prev.map(a => a._id === editAnn._id ? savedData : a));
+          toast({ title: 'Announcement Updated' });
+        } else {
+          setAnnouncementList(prev => [savedData, ...prev]);
+          toast({ title: 'Announcement Created' });
+        }
+        setDialogOpen(false);
+        setForm(emptyForm);
+      }
+    } catch (error) {
+      toast({ title: 'Server error', variant: 'destructive' });
     }
-    setDialogOpen(false);
-    setForm(emptyForm);
   };
 
-  const handleDelete = (a) => {
-    setAnnouncementList(prev => prev.filter(x => x.id !== a.id));
-    toast({ title: 'Announcement Deleted', description: a.title, variant: 'destructive' });
+  // DELETE ANNOUNCEMENT
+  const handleDelete = async (a) => {
+    if (!window.confirm("Delete this announcement?")) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/announcements/${a._id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setAnnouncementList(prev => prev.filter(x => x._id !== a._id));
+        toast({ title: 'Announcement Deleted', description: a.title, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Failed to delete', variant: 'destructive' });
+    }
   };
 
   return (
@@ -50,7 +86,7 @@ const Announcements = () => {
 
       <div className={styles.grid}>
         {announcementList.map(a => (
-          <div key={a.id} className={styles.card}>
+          <div key={a._id} className={styles.card}>
             <div className={styles.cardTop}>
               <h3 className={styles.cardTitle}>{a.title}</h3>
               <div className={styles.cardBtns}>
@@ -66,7 +102,7 @@ const Announcements = () => {
           </div>
         ))}
         {announcementList.length === 0 && (
-          <p style={{ color: 'var(--text-muted)', padding: 32, textAlign: 'center' }}>No announcements yet.</p>
+          <p style={{ color: 'var(--text-muted)', padding: 32, textAlign: 'center', gridColumn: '1 / -1' }}>No announcements yet.</p>
         )}
       </div>
 

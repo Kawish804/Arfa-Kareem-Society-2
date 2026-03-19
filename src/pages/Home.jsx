@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GraduationCap, CalendarDays, Users, Wallet, BarChart3, Shield, ArrowRight, ChevronRight, AlertTriangle, Heart } from 'lucide-react';
 import Modal from '@/components/ui/Modal.jsx';
@@ -17,25 +17,68 @@ const features = [
   { icon: GraduationCap, title: "Announcements", desc: "Keep members informed with real-time updates." },
 ];
 
-const upcomingEvents = [
-  { title: "Annual Tech Fest 2024", date: "Nov 15, 2024", desc: "Grand technology festival with competitions and talks." },
-  { title: "Coding Competition", date: "Dec 1, 2024", desc: "Competitive programming contest with exciting prizes." },
-  { title: "Sports Gala", date: "Nov 25, 2024", desc: "Annual sports event with multiple tournaments." },
-];
-
 const Home = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [reportOpen, setReportOpen] = useState(false);
   const [report, setReport] = useState({ name: '', email: '', subject: '', message: '' });
+  
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
 
-  const handleSubmitReport = () => {
+  // FETCH DYNAMIC EVENTS WITH DATE CHECK
+  useEffect(() => {
+    fetch('http://localhost:5000/api/events/records')
+      .then(res => res.json())
+      .then(data => {
+        // Get today's date and set it to midnight for accurate comparison
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const upcoming = data
+          .filter(e => {
+            // 1. Must be marked as Upcoming
+            if (e.status !== 'Upcoming') return false;
+            
+            // 2. The event date must be today or in the future
+            // (If the event spans multiple days, we check the endDate if it exists)
+            const dateToCheck = e.endDate || e.date;
+            if (dateToCheck) {
+              const eventDate = new Date(dateToCheck);
+              if (eventDate < today) return false; // Hide it if the date has passed!
+            }
+            
+            return true;
+          })
+          .sort((a, b) => new Date(a.date) - new Date(b.date)) // Sort to show the soonest events first
+          .slice(0, 3); // Grab the top 3
+          
+        setUpcomingEvents(upcoming);
+      })
+      .catch(err => console.error("Error fetching upcoming events:", err));
+  }, []);
+
+  const handleSubmitReport = async () => {
     if (!report.name || !report.subject || !report.message) {
       toast({ title: 'Please fill all required fields', variant: 'destructive' }); return;
     }
-    toast({ title: 'Report Submitted', description: 'Your report has been sent to the Society President for review.' });
-    setReportOpen(false);
-    setReport({ name: '', email: '', subject: '', message: '' });
+
+    try {
+      const res = await fetch('http://localhost:5000/api/reports/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report)
+      });
+
+      if (res.ok) {
+        toast({ title: 'Report Submitted', description: 'Your report has been sent to the Society President for review.' });
+        setReportOpen(false);
+        setReport({ name: '', email: '', subject: '', message: '' });
+      } else {
+        toast({ title: 'Failed to submit report', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Server error', description: 'Could not connect to the server.', variant: 'destructive' });
+    }
   };
 
   return (
@@ -114,13 +157,21 @@ const Home = () => {
         <div className={styles.sectionInner}>
           <h2 className={styles.sectionTitle}>Upcoming Events</h2>
           <div className={styles.eventGrid}>
-            {upcomingEvents.map(e => (
-              <div key={e.title} className={styles.eventCard}>
-                <span className={styles.eventDate}>{e.date}</span>
-                <h3 className={styles.eventTitle}>{e.title}</h3>
-                <p className={styles.eventDesc}>{e.desc}</p>
-              </div>
-            ))}
+            {upcomingEvents.length > 0 ? (
+              upcomingEvents.map(e => (
+                <div key={e._id} className={styles.eventCard}>
+                  <span className={styles.eventDate}>
+                    {e.date ? new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
+                  </span>
+                  <h3 className={styles.eventTitle}>{e.title}</h3>
+                  <p className={styles.eventDesc}>{e.description || 'Join us for this exciting upcoming event!'}</p>
+                </div>
+              ))
+            ) : (
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', gridColumn: '1 / -1', padding: '2rem 0' }}>
+                No upcoming events at the moment. Stay tuned!
+              </p>
+            )}
           </div>
         </div>
       </section>

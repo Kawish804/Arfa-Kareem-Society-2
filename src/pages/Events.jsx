@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CalendarDays, Edit, Trash2, Eye, Users, Star, Image as ImageIcon, MessageSquare, Upload, MapPin, Clock, GraduationCap } from 'lucide-react';
 import PageHeader from '@/components/PageHeader.jsx';
 import Button from '@/components/ui/Button.jsx';
@@ -7,7 +7,8 @@ import Textarea from '@/components/ui/Textarea.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import Modal from '@/components/ui/Modal.jsx';
 import Select from '@/components/ui/Select.jsx';
-import { events as initialEvents, eventParticipants as initialParticipants, eventFeedbacks as initialFeedbacks, eventScreenshots as initialScreenshots, members } from '@/data/mockData.js';
+// REMOVED mock participants, keeping feedbacks/screenshots mock until you build their backends
+import { eventFeedbacks as initialFeedbacks, eventScreenshots as initialScreenshots } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './Events.module.css';
 
@@ -20,23 +21,37 @@ const emptyForm = {
 };
 
 const Events = () => {
-  const [eventList, setEventList] = useState(initialEvents);
+  const [eventList, setEventList] = useState([]); 
+  const [participants, setParticipants] = useState([]); // DYNAMIC participants array
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editEvent, setEditEvent] = useState(null);
   const [viewEvent, setViewEvent] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [participants, setParticipants] = useState(initialParticipants);
+  
   const [feedbacks, setFeedbacks] = useState(initialFeedbacks);
   const [screenshots, setScreenshots] = useState(initialScreenshots);
   const { toast } = useToast();
 
-  // Detail modal tabs
   const [detailTab, setDetailTab] = useState('details');
-
-  // Performance evaluation state
   const [evalOpen, setEvalOpen] = useState(false);
   const [evalParticipant, setEvalParticipant] = useState(null);
   const [evalForm, setEvalForm] = useState({ teamwork: 3, communication: 3, responsibility: 3 });
+
+  // FETCH EVENTS & PARTICIPANTS FROM DATABASE
+  useEffect(() => {
+    Promise.all([
+      fetch('http://localhost:5000/api/events/records'),
+      fetch('http://localhost:5000/api/participants/all')
+    ])
+    .then(async ([evRes, partRes]) => {
+      const evData = await evRes.json();
+      const partData = await partRes.json();
+      
+      setEventList(evData);
+      setParticipants(partData);
+    })
+    .catch(err => console.error("Error fetching data:", err));
+  }, []);
 
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -55,7 +70,7 @@ const Events = () => {
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.title || !form.date) {
       toast({ title: 'Please fill required fields', variant: 'destructive' }); return;
     }
@@ -68,20 +83,48 @@ const Events = () => {
       registrationDeadline: form.registrationDeadline, eligibility: form.eligibility,
       entryFee: Number(form.entryFee) || 0, chiefGuest: form.chiefGuest, requirements: form.requirements
     };
-    if (editEvent) {
-      setEventList(prev => prev.map(e => e.id === editEvent.id ? { ...e, ...eventData } : e));
-      toast({ title: 'Event Updated', description: form.title });
-    } else {
-      setEventList(prev => [...prev, { id: String(Date.now()), ...eventData }]);
-      toast({ title: 'Event Created', description: form.title });
+
+    try {
+      const url = editEvent 
+        ? `http://localhost:5000/api/events/record/${editEvent._id}` 
+        : 'http://localhost:5000/api/events/record';
+      
+      const method = editEvent ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventData)
+      });
+
+      if (res.ok) {
+        const savedData = await res.json();
+        if (editEvent) {
+          setEventList(prev => prev.map(e => e._id === editEvent._id ? savedData : e));
+          toast({ title: 'Event Updated', description: form.title });
+        } else {
+          setEventList(prev => [...prev, savedData]);
+          toast({ title: 'Event Created', description: form.title });
+        }
+        setDialogOpen(false);
+        setForm(emptyForm);
+      }
+    } catch (error) {
+      toast({ title: 'Failed to save event', variant: 'destructive' });
     }
-    setDialogOpen(false);
-    setForm(emptyForm);
   };
 
-  const handleDelete = (e) => {
-    setEventList(prev => prev.filter(x => x.id !== e.id));
-    toast({ title: 'Event Deleted', description: e.title, variant: 'destructive' });
+  const handleDelete = async (e) => {
+    if(!window.confirm("Delete this event completely?")) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/events/record/${e._id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setEventList(prev => prev.filter(x => x._id !== e._id));
+        toast({ title: 'Event Deleted', description: e.title, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Failed to delete event', variant: 'destructive' });
+    }
   };
 
   const openView = (e) => {
@@ -89,30 +132,48 @@ const Events = () => {
     setDetailTab('details');
   };
 
-  // Get participants for an event
-  const getEventParticipants = (eventId) => participants.filter(p => p.eventId === eventId);
+  // Get REAL participants for this event who are approved
+  const getEventParticipants = (eventId) => participants.filter(p => p.eventId === eventId && p.status === 'Approved');
+  
   const getEventFeedbacks = (eventId) => feedbacks.filter(f => f.eventId === eventId);
   const getEventScreenshots = (eventId) => screenshots.filter(s => s.eventId === eventId);
 
-  // Performance evaluation
   const openEval = (participant) => {
     setEvalParticipant(participant);
-    setEvalForm({ teamwork: participant.teamwork || 3, communication: participant.communication || 3, responsibility: participant.responsibility || 3 });
+    setEvalForm({ 
+      teamwork: participant.teamwork || 3, 
+      communication: participant.communication || 3, 
+      responsibility: participant.responsibility || 3 
+    });
     setEvalOpen(true);
   };
 
-  const saveEval = () => {
+  // DYNAMIC EVALUATION SAVING
+  const saveEval = async () => {
     const total = evalForm.teamwork + evalForm.communication + evalForm.responsibility;
-    setParticipants(prev => prev.map(p =>
-      p.id === evalParticipant.id
-        ? { ...p, teamwork: evalForm.teamwork, communication: evalForm.communication, responsibility: evalForm.responsibility, totalScore: total }
-        : p
-    ));
-    toast({ title: 'Evaluation Saved', description: `${evalParticipant.memberName}: ${total}/15` });
-    setEvalOpen(false);
+    try {
+      const res = await fetch(`http://localhost:5000/api/participants/${evalParticipant._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teamwork: evalForm.teamwork,
+          communication: evalForm.communication,
+          responsibility: evalForm.responsibility,
+          totalScore: total
+        })
+      });
+
+      if (res.ok) {
+        const updatedP = await res.json();
+        setParticipants(prev => prev.map(p => p._id === updatedP._id ? updatedP : p));
+        toast({ title: 'Evaluation Saved', description: `${updatedP.studentName}: ${total}/15` });
+        setEvalOpen(false);
+      }
+    } catch (error) {
+      toast({ title: 'Failed to save evaluation', variant: 'destructive' });
+    }
   };
 
-  // Participate modal
   const [participateOpen, setParticipateOpen] = useState(false);
   const [participateEvent, setParticipateEvent] = useState(null);
   const [participateForm, setParticipateForm] = useState({ name: '', role: 'Volunteer' });
@@ -123,61 +184,77 @@ const Events = () => {
     setParticipateOpen(true);
   };
 
-  const handleParticipate = () => {
+  // DYNAMIC ADMIN PARTICIPATION
+  const handleParticipate = async () => {
     if (!participateForm.name) {
       toast({ title: 'Please enter your name', variant: 'destructive' }); return;
     }
-    const existing = participants.find(p => p.eventId === participateEvent.id && p.memberName === participateForm.name);
-    if (existing) {
-      toast({ title: 'Already participating', description: `${participateForm.name} is already registered`, variant: 'destructive' }); return;
+    
+    try {
+      const res = await fetch('http://localhost:5000/api/participants/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName: participateForm.name,
+          eventId: participateEvent._id,
+          eventTitle: participateEvent.title,
+          role: participateForm.role,
+          status: 'Approved' // Auto-approve since Admin is adding it directly
+        })
+      });
+
+      if (res.ok) {
+        const newP = await res.json();
+        setParticipants(prev => [...prev, newP]);
+        toast({ title: 'Participation Confirmed!', description: `${participateForm.name} joined as ${participateForm.role}` });
+        setParticipateOpen(false);
+      }
+    } catch (error) {
+      toast({ title: 'Failed to add participant', variant: 'destructive' });
     }
-    const newP = {
-      id: String(Date.now()),
-      eventId: participateEvent.id,
-      memberId: String(Date.now()),
-      memberName: participateForm.name,
-      role: participateForm.role,
-      teamwork: 3, communication: 3, responsibility: 3, totalScore: 9
-    };
-    setParticipants(prev => [...prev, newP]);
-    toast({ title: 'Participation Confirmed!', description: `${participateForm.name} joined as ${participateForm.role}` });
-    setParticipateOpen(false);
   };
 
-  // Add participant from detail view
   const [addParticipantOpen, setAddParticipantOpen] = useState(false);
   const [addPForm, setAddPForm] = useState({ name: '', role: 'Volunteer' });
 
-  const handleAddParticipant = () => {
+  // DYNAMIC ADD PARTICIPANT FROM MODAL
+  const handleAddParticipant = async () => {
     if (!addPForm.name) {
       toast({ title: 'Please enter participant name', variant: 'destructive' }); return;
     }
-    const existing = participants.find(p => p.eventId === viewEvent.id && p.memberName === addPForm.name);
-    if (existing) {
-      toast({ title: 'Already participating', variant: 'destructive' }); return;
+    
+    try {
+      const res = await fetch('http://localhost:5000/api/participants/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName: addPForm.name,
+          eventId: viewEvent._id,
+          eventTitle: viewEvent.title,
+          role: addPForm.role,
+          status: 'Approved' // Auto-approve since Admin is adding it
+        })
+      });
+
+      if (res.ok) {
+        const newP = await res.json();
+        setParticipants(prev => [...prev, newP]);
+        toast({ title: 'Participant Added', description: `${addPForm.name} as ${addPForm.role}` });
+        setAddParticipantOpen(false);
+        setAddPForm({ name: '', role: 'Volunteer' });
+      }
+    } catch (error) {
+      toast({ title: 'Failed to add participant', variant: 'destructive' });
     }
-    const newP = {
-      id: String(Date.now()),
-      eventId: viewEvent.id,
-      memberId: String(Date.now()),
-      memberName: addPForm.name,
-      role: addPForm.role,
-      teamwork: 3, communication: 3, responsibility: 3, totalScore: 9
-    };
-    setParticipants(prev => [...prev, newP]);
-    toast({ title: 'Participant Added', description: `${addPForm.name} as ${addPForm.role}` });
-    setAddParticipantOpen(false);
-    setAddPForm({ name: '', role: 'Volunteer' });
   };
 
-  // Screenshot upload
   const handleScreenshotUpload = (e) => {
     if (!viewEvent) return;
     const file = e.target.files[0];
     if (!file) return;
     const newSS = {
       id: String(Date.now()),
-      eventId: viewEvent.id,
+      eventId: viewEvent._id,
       url: URL.createObjectURL(file),
       caption: file.name
     };
@@ -191,19 +268,18 @@ const Events = () => {
 
       <div className={styles.grid}>
         {eventList.map(e => (
-          <div key={e.id} className={styles.card}>
+          <div key={e._id} className={styles.card}>
             <div className={styles.cardTop}>
-              <Badge variant={e.status === 'Upcoming' ? 'default' : 'secondary'}>{e.status}</Badge>
-              <span className={styles.date}><CalendarDays size={12} /> {e.date}</span>
+              <Badge variant={e.status === 'Upcoming' ? 'default' : e.status === 'Cancelled' ? 'destructive' : 'secondary'}>{e.status}</Badge>
+              <span className={styles.date}><CalendarDays size={12} /> {e.date ? new Date(e.date).toLocaleDateString() : 'TBD'}</span>
             </div>
             <h3 className={styles.cardTitle}>{e.title}</h3>
             <p className={styles.cardDesc}>{e.description}</p>
-            <p className={styles.budget}>Budget: Rs {e.budget.toLocaleString()}{e.entryFee ? ` • Entry: Rs ${e.entryFee}` : ' • Free Entry'}</p>
+            <p className={styles.budget}>Budget: Rs {e.budget?.toLocaleString()}{e.entryFee ? ` • Entry: Rs ${e.entryFee}` : ' • Free Entry'}</p>
             <div className={styles.cardMeta}>
-              <span className={styles.metaItem}><Users size={12} /> {getEventParticipants(e.id).length}{e.maxParticipants ? `/${e.maxParticipants}` : ''}</span>
+              <span className={styles.metaItem}><Users size={12} /> {getEventParticipants(e._id).length}{e.maxParticipants ? `/${e.maxParticipants}` : ''}</span>
               {e.venue && <span className={styles.metaItem}><MapPin size={12} /> {e.venue}</span>}
               {e.type && <span className={styles.metaItem}><GraduationCap size={12} /> {e.type}</span>}
-              {/* <span className={styles.metaItem}><MessageSquare size={12} /> {getEventFeedbacks(e.id).length}</span> */}
             </div>
             <div className={styles.cardActions}>
               <Button size="sm" variant="outline" onClick={() => openView(e)}>
@@ -218,7 +294,7 @@ const Events = () => {
           </div>
         ))}
         {eventList.length === 0 && (
-          <p style={{ color: 'var(--text-muted)', padding: 32, textAlign: 'center' }}>No events yet. Create one!</p>
+          <p style={{ color: 'var(--text-muted)', padding: 32, textAlign: 'center', gridColumn: '1 / -1' }}>No events yet. Create one!</p>
         )}
       </div>
 
@@ -300,7 +376,6 @@ const Events = () => {
         footer={<Button variant="outline" onClick={() => setViewEvent(null)}>Close</Button>}>
         {viewEvent && (
           <div>
-            {/* Detail Tabs */}
             <div className={styles.detailTabs}>
               {['details', 'participants', 'evaluation', 'screenshots', 'feedbacks'].map(tab => (
                 <button key={tab}
@@ -325,7 +400,7 @@ const Events = () => {
                 </div>
                 {viewEvent.venue && <div className={styles.field}><label>Venue</label><p>{viewEvent.venue}</p></div>}
                 <div className={styles.fieldRow}>
-                  <div className={styles.field}><label>Budget</label><p>Rs {viewEvent.budget.toLocaleString()}</p></div>
+                  <div className={styles.field}><label>Budget</label><p>Rs {viewEvent.budget?.toLocaleString() || 0}</p></div>
                   <div className={styles.field}><label>Entry Fee</label><p>{viewEvent.entryFee ? `Rs ${viewEvent.entryFee}` : 'Free'}</p></div>
                   <div className={styles.field}><label>Max Participants</label><p>{viewEvent.maxParticipants || 'Unlimited'}</p></div>
                 </div>
@@ -342,7 +417,7 @@ const Events = () => {
                   {viewEvent.contactPhone && <div className={styles.field}><label>Phone</label><p>{viewEvent.contactPhone}</p></div>}
                 </div>}
                 {viewEvent.chiefGuest && <div className={styles.field}><label>Chief Guest / Speaker</label><p>{viewEvent.chiefGuest}</p></div>}
-                <div className={styles.field}><label>Description</label><p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{viewEvent.description}</p></div>
+                <div className={styles.field}><label>Description</label><p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{viewEvent.description || 'No description provided.'}</p></div>
                 {viewEvent.requirements && <div className={styles.field}><label>Requirements</label><p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{viewEvent.requirements}</p></div>}
               </div>
             )}
@@ -355,12 +430,12 @@ const Events = () => {
                     <Users size={14} /> Add Participant
                   </Button>
                 </div>
-                {getEventParticipants(viewEvent.id).length > 0 ? (
+                {getEventParticipants(viewEvent._id).length > 0 ? (
                   <div className={styles.participantList}>
-                    {getEventParticipants(viewEvent.id).map(p => (
-                      <div key={p.id} className={styles.participantRow}>
+                    {getEventParticipants(viewEvent._id).map(p => (
+                      <div key={p._id} className={styles.participantRow}>
                         <div>
-                          <span className={styles.participantName}>{p.memberName}</span>
+                          <span className={styles.participantName}>{p.studentName}</span>
                           <Badge variant="secondary">{p.role}</Badge>
                         </div>
                       </div>
@@ -375,12 +450,12 @@ const Events = () => {
             {/* Evaluation Tab */}
             {detailTab === 'evaluation' && (
               <div>
-                {getEventParticipants(viewEvent.id).length > 0 ? (
+                {getEventParticipants(viewEvent._id).length > 0 ? (
                   <div className={styles.evalList}>
-                    {getEventParticipants(viewEvent.id).map(p => (
-                      <div key={p.id} className={styles.evalRow}>
+                    {getEventParticipants(viewEvent._id).map(p => (
+                      <div key={p._id} className={styles.evalRow}>
                         <div className={styles.evalInfo}>
-                          <span className={styles.participantName}>{p.memberName}</span>
+                          <span className={styles.participantName}>{p.studentName}</span>
                           <Badge variant="secondary">{p.role}</Badge>
                         </div>
                         <div className={styles.evalScores}>
@@ -411,9 +486,9 @@ const Events = () => {
                     <Upload size={16} /> Upload Screenshot
                   </label>
                 </div>
-                {getEventScreenshots(viewEvent.id).length > 0 ? (
+                {getEventScreenshots(viewEvent._id).length > 0 ? (
                   <div className={styles.ssGrid}>
-                    {getEventScreenshots(viewEvent.id).map(s => (
+                    {getEventScreenshots(viewEvent._id).map(s => (
                       <div key={s.id} className={styles.ssItem}>
                         <img src={s.url} alt={s.caption} className={styles.ssImg} />
                         <span className={styles.ssCaption}>{s.caption}</span>
@@ -429,12 +504,12 @@ const Events = () => {
             {/* Feedbacks Tab */}
             {detailTab === 'feedbacks' && (
               <div>
-                {getEventFeedbacks(viewEvent.id).length > 0 ? (
+                {getEventFeedbacks(viewEvent._id).length > 0 ? (
                   <div className={styles.fbList}>
-                    {getEventFeedbacks(viewEvent.id).map(f => (
+                    {getEventFeedbacks(viewEvent._id).map(f => (
                       <div key={f.id} className={styles.fbItem}>
                         <div className={styles.fbHeader}>
-                          <span className={styles.fbName}>{f.memberName}</span>
+                          <span className={styles.fbName}>{f.studentName}</span>
                           <div className={styles.fbStars}>
                             {[1, 2, 3, 4, 5].map(s => (
                               <Star key={s} size={14} fill={s <= f.rating ? 'var(--warning)' : 'none'} color={s <= f.rating ? 'var(--warning)' : 'var(--text-light)'} />
@@ -455,14 +530,14 @@ const Events = () => {
         )}
       </Modal>
 
-      {/* Participate Modal */}
+      {/* Participate Modal (Admin Adding Someone Else / Self directly to event card) */}
       <Modal open={participateOpen} onClose={() => setParticipateOpen(false)} title={`Join: ${participateEvent?.title || ''}`}
         footer={<>
           <Button variant="outline" onClick={() => setParticipateOpen(false)}>Cancel</Button>
           <Button onClick={handleParticipate}>Confirm Participation</Button>
         </>}>
         <div className={styles.formFields}>
-          <div className={styles.field}><label>Your Name *</label><Input placeholder="Enter your name" value={participateForm.name} onChange={e => setParticipateForm(p => ({ ...p, name: e.target.value }))} /></div>
+          <div className={styles.field}><label>Participant Name *</label><Input placeholder="Enter name" value={participateForm.name} onChange={e => setParticipateForm(p => ({ ...p, name: e.target.value }))} /></div>
           <div className={styles.field}>
             <label>Role</label>
             <Select value={participateForm.role} onChange={e => setParticipateForm(p => ({ ...p, role: e.target.value }))}>
@@ -472,7 +547,7 @@ const Events = () => {
         </div>
       </Modal>
 
-      {/* Add Participant Modal */}
+      {/* Add Participant Modal (Inside Event View) */}
       <Modal open={addParticipantOpen} onClose={() => setAddParticipantOpen(false)} title="Add Participant"
         footer={<>
           <Button variant="outline" onClick={() => setAddParticipantOpen(false)}>Cancel</Button>
@@ -498,7 +573,7 @@ const Events = () => {
         {evalParticipant && (
           <div className={styles.formFields}>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
-              Evaluating: <strong>{evalParticipant.memberName}</strong> ({evalParticipant.role})
+              Evaluating: <strong>{evalParticipant.studentName}</strong> ({evalParticipant.role})
             </p>
             <div className={styles.field}>
               <label>Teamwork ({evalForm.teamwork}/5)</label>

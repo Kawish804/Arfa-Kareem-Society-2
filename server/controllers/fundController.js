@@ -6,7 +6,7 @@ exports.submitRequest = async (req, res) => {
     try {
         const { name, email, amount, purpose, description } = req.body;
         const newRequest = new FundRequest({ name, email, amount, purpose, description });
-        
+
         await newRequest.save();
         res.status(201).json({ message: "Fund appeal submitted successfully!" });
     } catch (error) {
@@ -30,14 +30,24 @@ exports.updateStatus = async (req, res) => {
     try {
         const { status } = req.body; // 'Approved' or 'Rejected'
         const request = await FundRequest.findByIdAndUpdate(
-            req.params.id, 
-            { status }, 
+            req.params.id,
+            { status },
             { new: true }
         );
-        
+
         if (!request) return res.status(404).json({ message: "Request not found" });
         res.status(200).json(request);
     } catch (error) {
         res.status(500).json({ error: "Failed to update status." });
     }
-};  
+};
+// DELETE a fund request
+exports.deleteFundRequest = async (req, res) => {
+    try {
+        const deletedRequest = await FundRequest.findByIdAndDelete(req.params.id);
+        if (!deletedRequest) return res.status(404).json({ message: "Request not found" });
+        res.status(200).json({ message: "Request deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to delete request" });
+    }
+};
