@@ -1,36 +1,33 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect } from 'react';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(null); // Example: { name: 'Ali', role: 'Admin' }
   const [loading, setLoading] = useState(true);
 
-  // Check for saved token when the app loads
+  // When the app loads, check if the user is already logged in (saved in Local Storage)
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    if (storedUser && token) {
-      setUser(JSON.parse(storedUser));
+    const savedUser = localStorage.getItem('society_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
     }
     setLoading(false);
   }, []);
 
-  const login = (userData, token) => {
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', token);
+  const login = (userData) => {
     setUser(userData);
+    localStorage.setItem('society_user', JSON.stringify(userData)); // Save session
   };
 
   const logout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
     setUser(null);
+    localStorage.removeItem('society_user'); // Clear session
   };
 
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

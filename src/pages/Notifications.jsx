@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, CheckCheck, Trash2, Megaphone, CalendarDays, FileCheck, Wallet, Award } from 'lucide-react';
 import Button from '../components/ui/Button.jsx';
 import Badge from '../components/ui/Badge.jsx';
-import { notifications as initialNotifications } from '../data/mockData.js';
 import { useToast } from '../components/Toast/ToastProvider.jsx';
 import styles from './Notifications.module.css';
+
 const typeIcons = {
   announcement: Megaphone,
   event: CalendarDays,
@@ -12,25 +12,66 @@ const typeIcons = {
   fund: Wallet,
   performance: Award,
 };
+
 const Notifications = () => {
   const { toast } = useToast();
-  const [notifs, setNotifs] = useState(initialNotifications);
+  const [notifs, setNotifs] = useState([]); // Dynamic state starts empty
   const [filter, setFilter] = useState('all');
+
+  // FETCH DYNAMIC NOTIFICATIONS
+  useEffect(() => {
+    fetch('http://localhost:5000/api/notifications/all')
+      .then(res => res.json())
+      .then(data => setNotifs(Array.isArray(data) ? data : []))
+      .catch(err => console.error("Error fetching notifications:", err));
+  }, []);
+
   const unreadCount = notifs.filter(n => !n.read).length;
+  
   const filtered = filter === 'all' ? notifs
     : filter === 'unread' ? notifs.filter(n => !n.read)
     : notifs.filter(n => n.type === filter);
-  const markAllRead = () => {
-    setNotifs(prev => prev.map(n => ({ ...n, read: true })));
-    toast({ title: 'All notifications marked as read' });
+
+  // DYNAMIC MARK ALL READ
+  const markAllRead = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/notifications/mark-all-read', { method: 'PUT' });
+      if (res.ok) {
+        setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+        toast({ title: 'All notifications marked as read' });
+      }
+    } catch (error) {
+      toast({ title: 'Failed to update', variant: 'destructive' });
+    }
   };
-  const markRead = (id) => {
-    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+
+  // DYNAMIC MARK SINGLE READ
+  const markRead = async (id) => {
+    // Optimistically update UI immediately for snappiness
+    const notifToUpdate = notifs.find(n => n._id === id || n.id === id);
+    if (notifToUpdate?.read) return; // Already read
+
+    try {
+      setNotifs(prev => prev.map(n => (n._id === id || n.id === id) ? { ...n, read: true } : n));
+      await fetch(`http://localhost:5000/api/notifications/${id}/read`, { method: 'PUT' });
+    } catch (error) {
+      console.error("Failed to mark as read", error);
+    }
   };
-  const deleteNotif = (id) => {
-    setNotifs(prev => prev.filter(n => n.id !== id));
-    toast({ title: 'Notification removed' });
+
+  // DYNAMIC DELETE
+  const deleteNotif = async (id) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/notifications/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setNotifs(prev => prev.filter(n => n._id !== id && n.id !== id));
+        toast({ title: 'Notification removed' });
+      }
+    } catch (error) {
+      toast({ title: 'Failed to delete', variant: 'destructive' });
+    }
   };
+
   const filters = [
     { id: 'all', label: 'All' },
     { id: 'unread', label: 'Unread' },
@@ -39,6 +80,7 @@ const Notifications = () => {
     { id: 'request', label: 'Requests' },
     { id: 'fund', label: 'Funds' },
   ];
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -53,6 +95,7 @@ const Notifications = () => {
           </Button>
         )}
       </div>
+
       <div className={styles.filters}>
         {filters.map(f => (
           <button key={f.id} className={`${styles.filterBtn} ${filter === f.id ? styles.filterActive : ''}`} onClick={() => setFilter(f.id)}>
@@ -60,12 +103,15 @@ const Notifications = () => {
           </button>
         ))}
       </div>
+
       <div className={styles.list}>
         {filtered.length > 0 ? filtered.map(n => {
-          const Icon = typeIcons[n.type] || Bell;
+          const notifId = n._id || n.id; // Support MongoDB _id
+          const Icon = typeIcons[n.type?.toLowerCase()] || Bell;
+          
           return (
-            <div key={n.id} className={`${styles.item} ${!n.read ? styles.unread : ''}`} onClick={() => markRead(n.id)}>
-              <div className={`${styles.iconWrap} ${styles[`icon_${n.type}`]}`}>
+            <div key={notifId} className={`${styles.item} ${!n.read ? styles.unread : ''}`} onClick={() => markRead(notifId)}>
+              <div className={`${styles.iconWrap} ${styles[`icon_${n.type?.toLowerCase()}`] || ''}`}>
                 <Icon size={16} />
               </div>
               <div className={styles.itemContent}>
@@ -79,7 +125,7 @@ const Notifications = () => {
                   {!n.read && <span className={styles.dot} />}
                 </div>
               </div>
-              <button className={styles.deleteBtn} onClick={e => { e.stopPropagation(); deleteNotif(n.id); }} title="Remove">
+              <button className={styles.deleteBtn} onClick={e => { e.stopPropagation(); deleteNotif(notifId); }} title="Remove">
                 <Trash2 size={14} />
               </button>
             </div>
@@ -94,4 +140,5 @@ const Notifications = () => {
     </div>
   );
 };
+
 export default Notifications;

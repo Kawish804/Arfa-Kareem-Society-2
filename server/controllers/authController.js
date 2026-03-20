@@ -1,75 +1,103 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer'); // <-- NEW IMPORT
 
-// SIGNUP LOGIC
+// ==========================================
+// 1. SIGNUP LOGIC (WITH REAL EMAIL)
+// ==========================================
+// ==========================================
+// 1. SIGNUP LOGIC (With Admin Override Fallback)
+// ==========================================
+// server/controllers/authController.js
+
 exports.signup = async (req, res) => {
     try {
-        const { fullName, phone, email, password, department, semester, reason } = req.body;
+        const { fullName, email, phone, role /* ...other fields */ } = req.body;
 
-        // Check if user already exists
+        // 1. Standard check
         const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({ message: "An account with this email already exists." });
-        }
+        if (existingUser) return res.status(400).json({ message: "Email already registered." });
 
-        // Create new user (role defaults to 'Member', isApproved defaults to false)
-        const newUser = new User({
-            fullName,
-            phone,
-            email,
-            password,
-            department,
-            semester,
-            reason
-        });
+        const membershipId = Math.floor(100000 + Math.random() * 900000).toString();
 
+        // 2. Create the user in the DB (Inactive by default)
+        const newUser = new User({ ...req.body, membershipId, isActive: false, isApproved: false });
         await newUser.save();
 
-        // We return a 201 status to let the frontend know it was successful
-        res.status(201).json({
-            message: "Application submitted successfully. Pending admin approval."
+        // 3. ATTEMPT TO SEND EMAIL
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
         });
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Arfa Kareem Society Code',
+            text: `Your code is ${membershipId}`
+        };
+
+        // Use a Promise-based approach to catch the error BEFORE sending the response
+        try {
+            await transporter.sendMail(mailOptions);
+            // EMAIL SUCCESS: Tell frontend to show "Enter Code" screen
+            return res.status(201).json({
+                success: true,
+                emailSent: true,
+                message: "Verification code sent to your email."
+            });
+        } catch (mailError) {
+            console.error("🔴 Mail Delivery Failed:", mailError.message);
+            // EMAIL FAILED: Tell frontend to show "Manual Activation" screen
+            return res.status(201).json({
+                success: true,
+                emailSent: false,
+                message: "We couldn't reach your email address. Manual activation is required."
+            });
+        }
+
     } catch (error) {
-        res.status(500).json({ error: "Server error during signup. Please try again." });
-        console.error("🔴 SIGNUP ERROR:", error);
-        res.status(500).json({ error: error.message || "Server error during signup" });
+        res.status(500).json({ error: error.message });
     }
 };
 
-// LOGIN LOGIC
+// ==========================================
+// 2. LOGIN LOGIC
+// ==========================================
 exports.login = async (req, res) => {
     try {
         const { email, password, role } = req.body;
+        console.log(`Attempting login for: ${email} with role: ${role}`);
 
-        // 1. Find user by email
+        // 1. Find User
         const user = await User.findOne({ email });
         if (!user) {
-            return res.status(404).json({ message: "Invalid email or password." });
-        }
-
-        // 2. Verify role matches what they selected in the dropdown
-        if (user.role !== role) {
-            return res.status(403).json({ message: `Access denied. You are not registered as a ${role}.` });
-        }
-
-        // 3. Check if admin has approved the account (skip approval check for Admins if you want)
-        if (!user.isApproved && user.role !== 'Admin') {
-            return res.status(403).json({ message: "Your account is still pending admin approval." });
-        }
-
-        // 4. Check password
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
+            console.log("❌ Login Failed: User not found in database.");
             return res.status(400).json({ message: "Invalid email or password." });
         }
 
-        // 5. Generate Token
+        // 2. Check Password
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            console.log("❌ Login Failed: Password does not match.");
+            return res.status(400).json({ message: "Invalid email or password." });
+        }
+
+        // 3. Check Role (Crucial: Must match exactly)
+        if (user.role !== role) {
+            console.log(`❌ Login Failed: Role mismatch. DB has ${user.role}, but user selected ${role}`);
+            return res.status(400).json({ message: "Role mismatch. Please select the correct role." });
+        }
+
+        // 4. Create Token
         const token = jwt.sign(
             { id: user._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '1d' } // Token lasts for 1 day
+            { expiresIn: '1d' }
         );
+
+        console.log("✅ Login Successful for:", user.fullName);
 
         res.status(200).json({
             message: "Login successful",
@@ -81,15 +109,20 @@ exports.login = async (req, res) => {
                 role: user.role
             }
         });
+
     } catch (error) {
-        res.status(500).json({ error: "Server error during login." });
+        console.error("🔴 LOGIN ERROR:", error);
+        res.status(500).json({ error: "Server error during login" });
     }
 };
-// ACTIVATE ACCOUNT (Detective Mode)
+
+// ==========================================
+// 3. ACTIVATE ACCOUNT LOGIC
+// ==========================================
 exports.activateAccount = async (req, res) => {
     try {
         const { membershipId, email } = req.body;
-        
+
         console.log("\n--- NEW ACTIVATION ATTEMPT ---");
         console.log("Frontend sent ID:", `"${membershipId}"`);
         console.log("Frontend sent Email:", `"${email}"`);
@@ -99,7 +132,7 @@ exports.activateAccount = async (req, res) => {
 
         // 1. Search ONLY by Membership ID first
         const user = await User.findOne({ membershipId: cleanId });
-        
+
         if (!user) {
             console.log("🔴 ERROR: Could not find any user with that ID in the database.");
             return res.status(404).json({ message: "Invalid Membership ID." });
@@ -121,12 +154,34 @@ exports.activateAccount = async (req, res) => {
         // 4. Activate!
         user.isActive = true;
         await user.save();
-        
+
         console.log("🟢 SUCCESS: Account fully activated!");
         res.status(200).json({ message: "Account activated successfully." });
 
     } catch (error) {
         console.error("ACTIVATION ERROR:", error);
         res.status(500).json({ error: "Server error during activation." });
+    }
+};
+exports.manuallyActivateUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        // Force the account to be active
+        user.isActive = true;
+        // Optional: You can also auto-approve them here if you want 1-click activation & approval
+        // user.isApproved = true; 
+
+        await user.save();
+
+        res.status(200).json({ message: `${user.fullName}'s account has been manually activated!` });
+    } catch (error) {
+        console.error("🔴 ADMIN ACTIVATION ERROR:", error);
+        res.status(500).json({ error: "Server error during manual activation." });
     }
 };

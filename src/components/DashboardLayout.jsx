@@ -1,97 +1,107 @@
 import { useState } from 'react';
-import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
-import {
-  LayoutDashboard, Users, Wallet, Receipt, CalendarDays, FileCheck,
-  Megaphone, Image, BarChart3, Settings, LogOut, GraduationCap, Menu, X, ChevronLeft, Shield, MessageCircle, Bell, UserCheck
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { 
+  Users, Wallet, Receipt, CalendarDays, Megaphone, 
+  Settings as SettingsIcon, LogOut, Menu, X, 
+  Image as ImageIcon, BarChart3, GraduationCap, 
+  Bell, MessageSquare, ShieldAlert, FileCheck, ClipboardList
 } from 'lucide-react';
+import { useSettings } from '@/context/SettingsContext.jsx'; // <-- CONTEXT IMPORT
 import styles from './DashboardLayout.module.css';
 
 const menuItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Members", url: "/dashboard/members", icon: Users },
-  { title: "Funds", url: "/dashboard/funds", icon: Wallet },
-  { title: "Expenses", url: "/dashboard/expenses", icon: Receipt },
-  { title: "Events", url: "/dashboard/events", icon: CalendarDays },
-  { title: "Members Request", url: "/dashboard/requests", icon: FileCheck },
-  { title: "Participant Request", url: "/dashboard/participant-requests", icon: UserCheck },
-  { title: "Fund Requests", url: "/dashboard/fund-requests", icon: Wallet },
-  { title: "Announcements", url: "/dashboard/announcements", icon: Megaphone },
-  { title: "Gallery", url: "/dashboard/gallery", icon: Image },
-  { title: "Participants", url: "/dashboard/participants", icon: Users },
-  { title: "Visitors", url: "/dashboard/visitors", icon: Shield },
-  { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
-  { title: "Settings", url: "/dashboard/settings", icon: Settings },
+  { path: '/dashboard', icon: BarChart3, label: 'Dashboard', exact: true },
+  { path: '/dashboard/members', icon: Users, label: 'Members' },
+  { path: '/dashboard/funds', icon: Wallet, label: 'Funds' },
+  { path: '/dashboard/expenses', icon: Receipt, label: 'Expenses' },
+  { path: '/dashboard/events', icon: CalendarDays, label: 'Events' },
+  { path: '/dashboard/requests', icon: FileCheck, label: 'Members Request' },
+  { path: '/dashboard/participant-requests', icon: Users, label: 'Participant Request' },
+  { path: '/dashboard/fund-requests', icon: ClipboardList, label: 'Fund Requests' },
+  { path: '/dashboard/announcements', icon: Megaphone, label: 'Announcements' },
+  { path: '/dashboard/gallery', icon: ImageIcon, label: 'Gallery' },
+  { path: '/dashboard/participants', icon: Users, label: 'Participants' },
+  { path: '/dashboard/reports', icon: BarChart3, label: 'Reports' },
+  { path: '/dashboard/settings', icon: SettingsIcon, label: 'Settings' },
 ];
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const location = useLocation();
   const navigate = useNavigate();
-
-  const isActive = (url) => {
-    if (url === '/dashboard') return location.pathname === '/dashboard';
-    return location.pathname.startsWith(url);
-  };
-
-  const SidebarContent = () => (
-    <>
-      <div className={styles.brand}>
-        <div className={styles.brandIcon}><GraduationCap size={20} /></div>
-        {sidebarOpen && (
-          <div className={styles.brandText}>
-            <span className={styles.brandName}>Arfa Kareem</span>
-            <span className={styles.brandSub}>Society MS</span>
-          </div>
-        )}
-      </div>
-      <nav className={styles.nav}>
-        {menuItems.map(item => (
-          <Link key={item.title} to={item.url}
-            className={`${styles.navItem} ${isActive(item.url) ? styles.navActive : ''}`}
-            onClick={() => setMobileOpen(false)} title={item.title}>
-            <item.icon size={18} />
-            {sidebarOpen && <span>{item.title}</span>}
-          </Link>
-        ))}
-      </nav>
-    </>
-  );
+  
+  // GRAB THE DYNAMIC SETTINGS
+  const { settings } = useSettings(); 
 
   return (
     <div className={styles.layout}>
-      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.expanded : styles.collapsed}`}>
-        <SidebarContent />
-      </aside>
-      {mobileOpen && (
-        <div className={styles.mobileOverlay} onClick={() => setMobileOpen(false)}>
-          <aside className={styles.mobileSidebar} onClick={e => e.stopPropagation()}>
-            <SidebarContent />
-          </aside>
+      {/* Sidebar */}
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : styles.closed}`}>
+        <div className={styles.sidebarHeader}>
+          <div className={styles.logo}>
+            <GraduationCap size={24} />
+          </div>
+          {sidebarOpen && (
+            <div className={styles.brand}>
+              {/* DYNAMIC SOCIETY NAME */}
+              <h2 style={{ margin: 0, fontSize: '1.25rem', lineHeight: '1.2' }}>
+                {settings?.societyName || 'Society'}
+              </h2>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}></p>
+            </div>
+          )}
         </div>
-      )}
-      <div className={styles.main}>
+
+        <nav className={styles.nav}>
+          {menuItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.exact}
+              className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
+              title={!sidebarOpen ? item.label : ''}
+            >
+              <item.icon size={20} />
+              {sidebarOpen && <span>{item.label}</span>}
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className={styles.main}>
         <header className={styles.topbar}>
           <div className={styles.topbarLeft}>
-            <button className={styles.menuBtn} onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
-            <button className={styles.collapseBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
-              <ChevronLeft size={18} className={sidebarOpen ? '' : styles.rotated} />
+            <button className={styles.menuBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
+              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className={styles.topbarTitle}>Admin Panel</span>
+            <span className={styles.breadcrumb}>Admin Panel</span>
           </div>
+          
           <div className={styles.topbarRight}>
-            <button className={styles.chatBtn} onClick={() => navigate('/notifications')} title="Notifications"><Bell size={18} /><span className={styles.notifDot} /></button>
-            <button className={styles.chatBtn} onClick={() => navigate('/chat')} title="Chat"><MessageCircle size={18} /></button>
-            <div className={styles.userInfo}>
-              <span className={styles.userName}>Admin User</span>
-              <span className={styles.userEmail}>admin@society.edu</span>
+            <button className={styles.iconBtn}><Bell size={20} /></button>
+            <button className={styles.iconBtn} onClick={() => navigate('/chat')}><MessageSquare size={20} /></button>
+            
+            <div className={styles.profile} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className={styles.profileInfo} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <span className={styles.profileName} style={{ fontWeight: 600, fontSize: '0.875rem', lineHeight: '1' }}>Admin User</span>
+                {/* DYNAMIC EMAIL */}
+                <span className={styles.profileRole} style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  {settings?.email || 'admin@society.edu'}
+                </span>
+              </div>
+              <div className={styles.avatar}>AU</div>
             </div>
-            <div className={styles.avatar}>AU</div>
-            <button className={styles.logoutBtn} onClick={() => navigate('/login')}><LogOut size={18} /></button>
+
+            <button className={styles.logoutBtn} onClick={() => navigate('/login')}>
+              <LogOut size={20} />
+            </button>
           </div>
         </header>
-        <main className={styles.content}><Outlet /></main>
-      </div>
+
+        <div className={styles.content}>
+          <Outlet />
+        </div>
+      </main>
     </div>
   );
 };

@@ -7,7 +7,6 @@ import Modal from '@/components/ui/Modal.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
 import Select from '@/components/ui/Select.jsx';
-import { requests as initialRequests, events, announcements, notifications as initialNotifications } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './CRDashboard.module.css';
 
@@ -17,29 +16,53 @@ const CRDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('requests');
-  const [requestList, setRequestList] = useState(initialRequests);
-  const [notifs] = useState(initialNotifications);
+  
+  // DYNAMIC STATES
+  const [requestList, setRequestList] = useState([]);
+  const [notifs, setNotifs] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [fundRecords, setFundRecords] = useState([]);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', type: 'Department' });
 
-  const [fundRecords, setFundRecords] = useState([]);
   const [fundDialogOpen, setFundDialogOpen] = useState(false);
   const [fundForm, setFundForm] = useState({ 
-    studentName: '', 
-    rollNo: '',
-    department: 'BS-IT', 
-    semester: '1st', 
-    timing: 'Morning', 
-    amount: '', 
-    status: 'Paid', 
-    method: 'Cash' 
+    studentName: '', rollNo: '', department: 'BS-IT', semester: '1st', timing: 'Morning', amount: '', status: 'Paid', method: 'Cash' 
   });
 
+  // FETCH EVERYTHING DYNAMICALLY
   useEffect(() => {
+    // 1. Funds
     fetch('http://localhost:5000/api/fund-collections/records')
       .then(res => res.json())
-      .then(data => setFundRecords(data))
+      .then(data => setFundRecords(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching funds:", err));
+
+    // 2. Events
+    fetch('http://localhost:5000/api/events/records')
+      .then(res => res.json())
+      .then(data => setEvents(Array.isArray(data) ? data : []))
+      .catch(err => console.error("Error fetching events:", err));
+
+    // 3. Announcements
+    fetch('http://localhost:5000/api/announcements/all')
+      .then(res => res.json())
+      .then(data => setAnnouncements(Array.isArray(data) ? data : []))
+      .catch(err => console.error("Error fetching announcements:", err));
+
+    // 4. CR Requests (Will populate once you build the backend)
+    fetch('http://localhost:5000/api/cr-requests/all')
+      .then(res => res.json())
+      .then(data => setRequestList(Array.isArray(data) ? data : []))
+      .catch(err => console.log("Requests backend not yet built."));
+
+    // 5. Notifications (Will populate once you build the backend)
+    fetch('http://localhost:5000/api/notifications/all')
+      .then(res => res.json())
+      .then(data => setNotifs(Array.isArray(data) ? data : []))
+      .catch(err => console.log("Notifications backend not yet built."));
   }, []);
 
   const myRequests = requestList.filter(r => r.submittedBy === currentUser.name);
@@ -49,10 +72,11 @@ const CRDashboard = () => {
   const paidCount = fundRecords.filter(f => f.status === 'Paid').length;
   const unpaidCount = fundRecords.filter(f => f.status === 'Unpaid').length;
 
-  const handleSubmitRequest = () => {
+  // DYNAMIC SUBMIT CR REQUEST
+  const handleSubmitRequest = async () => {
     if (!form.title) { toast({ title: 'Please enter a title', variant: 'destructive' }); return; }
+    
     const newReq = {
-      id: String(Date.now()),
       title: form.title,
       submittedBy: currentUser.name,
       date: new Date().toISOString().split('T')[0],
@@ -60,10 +84,30 @@ const CRDashboard = () => {
       type: form.type,
       description: form.description,
     };
-    setRequestList(prev => [...prev, newReq]);
-    toast({ title: 'Request submitted successfully' });
-    setDialogOpen(false);
-    setForm({ title: '', description: '', type: 'Department' });
+
+    try {
+      const res = await fetch('http://localhost:5000/api/cr-requests/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newReq)
+      });
+
+      if (res.ok) {
+        const savedReq = await res.json();
+        setRequestList(prev => [...prev, savedReq]);
+        toast({ title: 'Request submitted successfully' });
+        setDialogOpen(false);
+        setForm({ title: '', description: '', type: 'Department' });
+      } else {
+        // Fallback for UI testing before backend is built
+        setRequestList(prev => [...prev, { _id: String(Date.now()), ...newReq }]);
+        toast({ title: 'Request added locally (Backend missing)' });
+        setDialogOpen(false);
+        setForm({ title: '', description: '', type: 'Department' });
+      }
+    } catch (error) {
+      toast({ title: 'Server connection failed', variant: 'destructive' });
+    }
   };
 
   const handleAddFundRecord = async () => {
@@ -206,7 +250,7 @@ const CRDashboard = () => {
                   <thead><tr><th>Title</th><th>Type</th><th>Date</th><th>Status</th></tr></thead>
                   <tbody>
                     {myRequests.length > 0 ? myRequests.map(r => (
-                      <tr key={r.id}>
+                      <tr key={r._id || r.id}>
                         <td className={styles.bold}>{r.title}</td>
                         <td><Badge variant="secondary">{r.type}</Badge></td>
                         <td className={styles.muted}>{r.date}</td>
@@ -300,16 +344,16 @@ const CRDashboard = () => {
             <div>
               <h2 className={styles.sectionTitle}>Events</h2>
               <div className={styles.eventGrid}>
-                {events.map(e => (
-                  <div key={e.id} className={styles.eventCard}>
+                {events.length > 0 ? events.map(e => (
+                  <div key={e._id} className={styles.eventCard}>
                     <div className={styles.eventTop}>
                       <Badge variant={e.status === 'Upcoming' ? 'default' : 'secondary'}>{e.status}</Badge>
-                      <span className={styles.eventDate}><CalendarDays size={12} /> {e.date}</span>
+                      <span className={styles.eventDate}><CalendarDays size={12} /> {e.date ? new Date(e.date).toLocaleDateString() : 'TBD'}</span>
                     </div>
                     <h3 className={styles.eventTitle}>{e.title}</h3>
                     <p className={styles.eventDesc}>{e.description}</p>
                   </div>
-                ))}
+                )) : <p className={styles.empty}>No events to display.</p>}
               </div>
             </div>
           )}
@@ -318,8 +362,8 @@ const CRDashboard = () => {
             <div>
               <h2 className={styles.sectionTitle}>Announcements</h2>
               <div className={styles.eventGrid}>
-                {announcements.map(a => (
-                  <div key={a.id} className={styles.eventCard}>
+                {announcements.length > 0 ? announcements.map(a => (
+                  <div key={a._id} className={styles.eventCard}>
                     <h3 className={styles.eventTitle}>{a.title}</h3>
                     <p className={styles.eventDesc}>{a.description}</p>
                     <div className={styles.annMeta}>
@@ -327,7 +371,7 @@ const CRDashboard = () => {
                       <span className={styles.muted}>By {a.postedBy}</span>
                     </div>
                   </div>
-                ))}
+                )) : <p className={styles.empty}>No announcements yet.</p>}
               </div>
             </div>
           )}
@@ -336,8 +380,8 @@ const CRDashboard = () => {
             <div>
               <h2 className={styles.sectionTitle}>Notifications</h2>
               <div className={styles.notifList}>
-                {notifs.map(n => (
-                  <div key={n.id} className={`${styles.notifItem} ${!n.read ? styles.notifUnread : ''}`}>
+                {notifs.length > 0 ? notifs.map(n => (
+                  <div key={n._id || n.id} className={`${styles.notifItem} ${!n.read ? styles.notifUnread : ''}`}>
                     <div className={styles.notifDot} />
                     <div className={styles.notifContent}>
                       <h4 className={styles.notifTitle}>{n.title}</h4>
@@ -345,13 +389,14 @@ const CRDashboard = () => {
                       <span className={styles.notifDate}>{n.date}</span>
                     </div>
                   </div>
-                ))}
+                )) : <p className={styles.empty} style={{padding: '24px 0'}}>No notifications to display.</p>}
               </div>
             </div>
           )}
         </div>
       </div>
 
+      {/* MODALS */}
       <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title="Submit Departmental Request"
         footer={<><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={handleSubmitRequest}><Send size={14} /> Submit</Button></>}>
         <div className={styles.formFields}>
@@ -370,21 +415,15 @@ const CRDashboard = () => {
       <Modal open={fundDialogOpen} onClose={() => setFundDialogOpen(false)} title="Add Fund Record"
         footer={<><Button variant="outline" onClick={() => setFundDialogOpen(false)}>Cancel</Button><Button onClick={handleAddFundRecord}><Send size={14} /> Add Record</Button></>}>
         <div className={styles.formFields}>
-          
           <div className={styles.field}>
             <label>Student Name *</label>
             <Input value={fundForm.studentName} onChange={e => setFundForm(p => ({ ...p, studentName: e.target.value }))} placeholder="e.g. Ali Ahmed" />
           </div>
-
           <div style={{ display: 'flex', gap: '16px' }}>
             <div className={styles.field} style={{ flex: 1 }}>
               <label>Department *</label>
               <Select value={fundForm.department} onChange={e => setFundForm(p => ({ ...p, department: e.target.value }))}>
-                <option value="BS-IT">BS-IT</option>
-                <option value="Chemistry">Chemistry</option>
-                <option value="Economics">Economics</option>
-                <option value="English">English</option>
-                <option value="Maths">Maths</option>
+                <option value="BS-IT">BS-IT</option><option value="Chemistry">Chemistry</option><option value="Economics">Economics</option><option value="English">English</option><option value="Maths">Maths</option>
               </Select>
             </div>
             <div className={styles.field} style={{ flex: 1 }}>
@@ -392,30 +431,20 @@ const CRDashboard = () => {
               <Input value={fundForm.rollNo} onChange={e => setFundForm(p => ({ ...p, rollNo: e.target.value }))} placeholder="22034156-xxx" />
             </div>
           </div>
-
           <div style={{ display: 'flex', gap: '16px' }}>
             <div className={styles.field} style={{ flex: 1 }}>
               <label>Semester *</label>
               <Select value={fundForm.semester} onChange={e => setFundForm(p => ({ ...p, semester: e.target.value }))}>
-                <option value="1st">1st Semester</option>
-                <option value="2nd">2nd Semester</option>
-                <option value="3rd">3rd Semester</option>
-                <option value="4th">4th Semester</option>
-                <option value="5th">5th Semester</option>
-                <option value="6th">6th Semester</option>
-                <option value="7th">7th Semester</option>
-                <option value="8th">8th Semester</option>
+                <option value="1st">1st Semester</option><option value="2nd">2nd Semester</option><option value="3rd">3rd Semester</option><option value="4th">4th Semester</option><option value="5th">5th Semester</option><option value="6th">6th Semester</option><option value="7th">7th Semester</option><option value="8th">8th Semester</option>
               </Select>
             </div>
             <div className={styles.field} style={{ flex: 1 }}>
               <label>Timing *</label>
               <Select value={fundForm.timing} onChange={e => setFundForm(p => ({ ...p, timing: e.target.value }))}>
-                <option value="Morning">Morning</option>
-                <option value="Evening">Evening</option>
+                <option value="Morning">Morning</option><option value="Evening">Evening</option>
               </Select>
             </div>
           </div>
-          
           <div className={styles.field}>
             <label>Amount (Rs) *</label>
             <Input type="number" value={fundForm.amount} onChange={e => setFundForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 500" />

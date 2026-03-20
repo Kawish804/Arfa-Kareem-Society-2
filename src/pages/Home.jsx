@@ -6,6 +6,7 @@ import Input from '@/components/ui/Input.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import Button from '@/components/ui/Button.jsx';
+import { useSettings } from '@/context/SettingsContext.jsx'; // <-- IMPORT CONTEXT
 import styles from './Home.module.css';
 
 const features = [
@@ -20,37 +21,33 @@ const features = [
 const Home = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // GRAB DYNAMIC SETTINGS
+  const { settings, loading } = useSettings();
+
   const [reportOpen, setReportOpen] = useState(false);
   const [report, setReport] = useState({ name: '', email: '', subject: '', message: '' });
-  
   const [upcomingEvents, setUpcomingEvents] = useState([]);
 
-  // FETCH DYNAMIC EVENTS WITH DATE CHECK
   useEffect(() => {
     fetch('http://localhost:5000/api/events/records')
       .then(res => res.json())
       .then(data => {
-        // Get today's date and set it to midnight for accurate comparison
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const upcoming = data
+        const upcoming = Array.isArray(data) ? data
           .filter(e => {
-            // 1. Must be marked as Upcoming
             if (e.status !== 'Upcoming') return false;
-            
-            // 2. The event date must be today or in the future
-            // (If the event spans multiple days, we check the endDate if it exists)
             const dateToCheck = e.endDate || e.date;
             if (dateToCheck) {
               const eventDate = new Date(dateToCheck);
-              if (eventDate < today) return false; // Hide it if the date has passed!
+              if (eventDate < today) return false; 
             }
-            
             return true;
           })
-          .sort((a, b) => new Date(a.date) - new Date(b.date)) // Sort to show the soonest events first
-          .slice(0, 3); // Grab the top 3
+          .sort((a, b) => new Date(a.date) - new Date(b.date))
+          .slice(0, 3) : [];
           
         setUpcomingEvents(upcoming);
       })
@@ -81,13 +78,15 @@ const Home = () => {
     }
   };
 
+  if (loading) return null; // Wait for settings to load to prevent visual pop
+
   return (
     <div className={styles.page}>
       <nav className={styles.navbar}>
         <div className={styles.navInner}>
           <div className={styles.navBrand}>
             <div className={styles.navLogo}><GraduationCap size={20} /></div>
-            <span className={styles.navName}>Arfa Kareem Society</span>
+            <span className={styles.navName}>{settings.societyName}</span> {/* DYNAMIC */}
           </div>
           <div className={styles.navLinks}>
             <a href="#about">About</a>
@@ -104,10 +103,10 @@ const Home = () => {
       <section className={styles.hero}>
         <div className={styles.heroContent}>
           <div className={styles.heroBadge}>
-            <GraduationCap size={16} /> University Society Platform
+            <GraduationCap size={16} /> {settings.university} {/* DYNAMIC */}
           </div>
           <h1 className={styles.heroTitle}>
-            Arfa Kareem Society<br />
+            {settings.societyName}<br /> {/* DYNAMIC */}
             <span className={styles.heroHighlight}>Management System</span>
           </h1>
           <p className={styles.heroSubtitle}>
@@ -131,9 +130,7 @@ const Home = () => {
         <div className={styles.sectionInner}>
           <h2 className={styles.sectionTitle}>About the Society</h2>
           <p className={styles.aboutText}>
-            Named after Arfa Kareem, Pakistan's youngest Microsoft Certified Professional, our society promotes
-            technology education, leadership, and community building among university students. We organize tech events,
-            workshops, and collaborative projects to nurture the next generation of tech leaders.
+            Welcome to the {settings.societyName}. Our society promotes technology education, leadership, and community building among university students. We organize tech events, workshops, and collaborative projects to nurture the next generation of leaders.
           </p>
         </div>
       </section>
@@ -179,7 +176,7 @@ const Home = () => {
       <section className={styles.cta}>
         <div className={styles.sectionInner}>
           <h2 className={styles.sectionTitle}>Ready to Get Started?</h2>
-          <p className={styles.ctaText}>Join the Arfa Kareem Society and be part of a vibrant community of tech enthusiasts.</p>
+          <p className={styles.ctaText}>Join the {settings.societyName} and be part of a vibrant community.</p> {/* DYNAMIC */}
           <Button size="lg" onClick={() => navigate('/signup')}>
             Get Started <ChevronRight size={16} />
           </Button>
@@ -194,7 +191,7 @@ const Home = () => {
         </>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0 }}>
-            Report any ongoing issues in the university. Your message will be sent directly to the Society President.
+            Report any ongoing issues. Your message will be sent directly to the Society President.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Your Name *</label>
@@ -220,7 +217,7 @@ const Home = () => {
           <div className={styles.footerCol}>
             <div className={styles.footerBrand}>
               <GraduationCap size={22} />
-              <span>Arfa Kareem Society</span>
+              <span>{settings.societyName}</span> {/* DYNAMIC */}
             </div>
             <p className={styles.footerText}>Empowering students through technology and community.</p>
           </div>
@@ -228,17 +225,17 @@ const Home = () => {
             <h4>Quick Links</h4>
             <p onClick={() => navigate('/login')}>Login</p>
             <p onClick={() => navigate('/dashboard')}>Dashboard</p>
-            <p onClick={() => navigate('/dashboard/events')}>Events</p>
+            <p onClick={() => navigate('/events')}>Events</p>
           </div>
           <div className={styles.footerCol}>
             <h4>Contact</h4>
-            <p>Email: info@arfakareem.edu</p>
-            <p>Phone: +92-300-1234567</p>
-            <p>University Campus, Lahore</p>
+            <p>Email: {settings.email}</p> {/* DYNAMIC */}
+            <p>Phone: {settings.phone}</p> {/* DYNAMIC */}
+            <p>{settings.university}</p> {/* DYNAMIC */}
           </div>
         </div>
         <div className={styles.footerBottom}>
-          © 2024 Arfa Kareem Society Management System. All rights reserved.
+          © {new Date().getFullYear()} {settings.societyName} Management System. All rights reserved.
         </div>
       </footer>
     </div>

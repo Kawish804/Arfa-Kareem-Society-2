@@ -92,20 +92,20 @@ exports.getDashboardStats = async (req, res) => {
         const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
         // Calculate real Active Events (INSIDE the async function!)
-        const activeEvents = await Event.countDocuments({ 
-            status: { $in: ['Upcoming', 'Ongoing'] } 
+        const activeEvents = await Event.countDocuments({
+            status: { $in: ['Upcoming', 'Ongoing'] }
         });
 
         // 2. CHART DATA AGGREGATION
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        
+
         let fundChart = monthNames.map(month => ({ month, amount: 0 }));
         let expenseChart = monthNames.map(month => ({ month, amount: 0 }));
 
         funds.forEach(fund => {
             if (fund.date) {
                 const date = new Date(fund.date);
-                const monthIndex = date.getMonth(); 
+                const monthIndex = date.getMonth();
                 if (!isNaN(monthIndex)) {
                     fundChart[monthIndex].amount += (Number(fund.amount) || 0);
                 }
@@ -142,5 +142,31 @@ exports.getDashboardStats = async (req, res) => {
     } catch (error) {
         console.error("Dashboard Stats Error:", error);
         res.status(500).json({ error: "Failed to fetch dashboard statistics" });
+    }
+};
+exports.manuallyActivateUser = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        user.isActive = true;
+        await user.save();
+        res.status(200).json({ message: "Account activated successfully!" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 2. Transfer Presidency
+exports.transferPresidency = async (req, res) => {
+    try {
+        const { newPresidentId } = req.params;
+        const { currentAdminId } = req.body;
+
+        await User.findByIdAndUpdate(newPresidentId, { role: 'Admin', isApproved: true, isActive: true });
+        await User.findByIdAndUpdate(currentAdminId, { role: 'Member' });
+
+        res.status(200).json({ message: "Presidency transferred successfully!" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 };
