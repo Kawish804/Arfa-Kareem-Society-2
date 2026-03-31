@@ -1,0 +1,75 @@
+.page { min-height: 100vh; background: var(--background); }
+.header { background: var(--card); border-bottom: 1px solid var(--border); box-shadow: var(--shadow); }
+.headerInner { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+.headerLeft { display: flex; align-items: center; gap: 12px; }
+.headerLogo { width: 40px; height: 40px; border-radius: 10px; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; }
+.headerTitle { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+.headerSub { font-size: 0.8125rem; color: var(--text-muted); }
+.headerRight { display: flex; align-items: center; gap: 12px; }
+.badge { position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--destructive); color: #fff; font-size: 0.625rem; display: flex; align-items: center; justify-content: center; }
+.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.tabs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px; margin-bottom: 24px; overflow-x: auto; }
+.tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border: none; background: transparent; border-radius: var(--radius-sm); font-size: 0.8125rem; font-weight: 500; color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+.tab:hover { background: var(--primary-light); color: var(--text); }
+.tabActive { background: var(--primary); color: #fff; }
+.tabActive:hover { background: var(--primary-hover); color: #fff; }
+.content { min-height: 400px; }
+.sectionTitle { font-size: 1.375rem; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+.roleDesc { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+.sectionHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.sectionHeader .sectionTitle { margin-bottom: 0; }
+.subTitle { font-size: 1.125rem; font-weight: 600; margin: 20px 0 12px; color: var(--text); }
+.formFields { display: flex; flex-direction: column; gap: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 0.8125rem; font-weight: 500; color: var(--text); }
+
+.galleryGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.galleryItem { position: relative; border-radius: var(--radius); overflow: hidden; cursor: pointer; aspect-ratio: 1; }
+.galleryImg { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
+.galleryItem:hover .galleryImg { transform: scale(1.05); }
+.galleryOverlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px; background: linear-gradient(transparent, rgba(0,0,0,0.7)); color: #fff; }
+.galleryCaption { font-size: 0.8125rem; font-weight: 500; }
+.galleryEvent { font-size: 0.6875rem; opacity: 0.8; }
+
+.postGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.postCard { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.postTop { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.platformTag { display: flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 500; color: var(--primary); }
+.postContent { font-size: 0.875rem; color: var(--text); line-height: 1.5; margin-bottom: 12px; }
+.postMeta { display: flex; align-items: center; gap: 16px; font-size: 0.75rem; color: var(--text-muted); }
+.postMeta span { display: flex; align-items: center; gap: 4px; }
+
+.cardGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.eventCard { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); transition: all 0.3s; }
+.eventCard:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.eventTop { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.eventDesc { font-size: 0.8125rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px; }
+.eventMeta { font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+
+.tableWrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.table th { text-align: left; padding: 12px 16px; font-weight: 500; color: var(--text-muted); font-size: 0.8125rem; border-bottom: 1px solid var(--border); }
+.table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background: var(--primary-light); }
+.bold { font-weight: 500; }
+.muted { color: var(--text-muted); font-size: 0.8125rem; }
+
+.notifList { display: flex; flex-direction: column; gap: 8px; }
+.notifItem { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.notifUnread { background: var(--primary-light); border-color: var(--primary); }
+.notifDot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-top: 6px; flex-shrink: 0; }
+.notifContent { flex: 1; }
+.notifTitle { font-size: 0.875rem; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+
+.previewOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.previewModal { background: var(--card); border-radius: var(--radius); overflow: hidden; max-width: 600px; width: 100%; }
+.previewImage { width: 100%; max-height: 400px; object-fit: contain; background: #000; }
+.previewInfo { padding: 16px 20px; }
+
+@media (max-width: 768px) {
+  .headerInner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .tab span { display: none; }
+  .galleryGrid { grid-template-columns: 1fr 1fr; }
+  .postGrid, .cardGrid { grid-template-columns: 1fr; }
+}

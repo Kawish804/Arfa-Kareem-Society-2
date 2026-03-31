@@ -16,13 +16,20 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [membershipId, setMembershipId] = useState('');
+  const [availableRoles, setAvailableRoles] = useState([]);
 
-  // ADDED: 'batch' to the initial form state
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', password: '', department: '',
     semester: '', rollNo: '', timing: '', batch: '', role: '', reason: '',
   });
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/auth/available-roles')
+      .then(res => res.json())
+      .then(data => setAvailableRoles(data))
+      .catch(err => console.error("Failed to fetch roles"));
+  }, []);
 
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
@@ -48,7 +55,7 @@ const Signup = () => {
         e.rollNo = 'Format must be 22XXXXXX-XXX';
       }
       if (!form.timing) e.timing = 'Select your batch timing';
-      if (!form.batch) e.batch = 'Select your year batch'; // ADDED: Batch validation
+      if (!form.batch) e.batch = 'Select your year batch';
     }
     return e;
   };
@@ -263,12 +270,10 @@ const Signup = () => {
             <label className={styles.label}>Requested Role *</label>
             <Select value={form.role} onChange={e => set('role', e.target.value)}>
               <option value="">Select your role</option>
-              <option value="Student">Regular Student</option>
-              <option value="Member">Society Member</option>
-              <option value="CR">Class Representative (CR)</option>
-              <option value="Finance Manager">Finance Manager</option>
-              <option value="Event Coordinator">Event Coordinator</option>
-              <option value="Visitor">Visitor / Guest</option>
+              {/* DYNAMICALLY MAP OVER ROLES! */}
+              {availableRoles.map(role => (
+                <option key={role} value={role}>{role}</option>
+              ))}
             </Select>
             {errors.role && <span className={styles.error}>{errors.role}</span>}
           </div>
@@ -317,7 +322,6 @@ const Signup = () => {
                 </div>
               </div>
 
-              {/* ADDED: BATCH SELECTION FOR CR MATCHING */}
               <div className={styles.field}>
                 <label className={styles.label}>Year / Batch *</label>
                 <Select value={form.batch} onChange={e => set('batch', e.target.value)}>
@@ -351,4 +355,4 @@ const Signup = () => {
   );
 };
 
-export default Signup;  
+export default Signup;

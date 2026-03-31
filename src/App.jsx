@@ -4,10 +4,17 @@ import { SettingsProvider } from '../src/context/SettingsContext.jsx';
 import { AuthProvider } from '../src/context/AuthContext.jsx';
 import ProtectedRoute from '../src/components/ProtectedRoute.jsx'; 
 
+// Layouts & Public
 import DashboardLayout from '../src/components/DashboardLayout.jsx';
 import Home from '../src/pages/Home.jsx';
 import StudentPortal from '../src/pages/StudentPortal.jsx';
 import Login from '../src/pages/Login.jsx';
+import Signup from '../src/pages/Signup.jsx';
+import MemberSignup from '../src/pages/MembersSignUp.jsx';
+import Contribute from '../src/pages/Contribute.jsx';
+import NotFound from '../src/pages/NotFound.jsx';
+
+// Dashboards & Pages
 import Dashboard from '../src/pages/Dashboard.jsx';
 import Members from '../src/pages/Members.jsx';
 import Funds from '../src/pages/Funds.jsx';
@@ -21,25 +28,26 @@ import Gallery from '../src/pages/Gallery.jsx';
 import Reports from '../src/pages/Reports.jsx';
 import Settings from '../src/pages/Settings.jsx';
 import Participants from '../src/pages/Participants.jsx';
-import Signup from '../src/pages/Signup.jsx';
-import MemberSignup from '../src/pages/MembersSignUp.jsx';
-import CRDashboard from '../src/pages/CRDashboard.jsx';
 import Chat from '../src/pages/Chat.jsx';
-import Contribute from '../src/pages/Contribute.jsx';
 import Notifications from '../src/pages/Notifications.jsx';
-import NotFound from '../src/pages/NotFound.jsx';
 import StudentManagement from '../src/pages/StudentManagement.jsx';
+
+// Role-Specific
+import CRDashboard from '../src/pages/CRDashboard.jsx';
+import JointGSDashboard from '../src/pages/JointGSDashboard.jsx';
+import AssistantFinanceDashboard from '../src/pages/AssistantFinanceDashboard.jsx';
+import CoMediaDashboard from '../src/pages/CoMediaDashboard.jsx'; 
+import EventManagerDashboard from '../src/pages/EventManagerDashboard.jsx';
+import FinanceSecretaryDashboard from '../src/pages/FinanceSecretaryDashboard.jsx';
+import MediaPRDashboard from '../src/pages/MediaPRDashboard.jsx';
+import GeneralSecretary from '../src/pages/GeneralSecretaryDashboard.jsx';
 
 const App = () => (
   <ToastProvider>
     <SettingsProvider>
-      <AuthProvider> {/* <-- WRAP APP IN AUTH PROVIDER */}
+      <AuthProvider> 
         <BrowserRouter>
           <Routes>
-            {/* ========================================== */}
-            {/* PUBLIC ROUTES (Anyone can access)          */}
-            {/* ========================================== */}
-            {/* Setting path="/" ensures Student Portal is the default landing page */}
             <Route path="/" element={<StudentPortal />} />
             <Route path="/home" element={<Home />} /> 
             <Route path="/student" element={<StudentPortal />} />
@@ -48,18 +56,41 @@ const App = () => (
             <Route path="/member-signup" element={<MemberSignup />} />
             <Route path="/contribute" element={<Contribute />} />
 
-            {/* ========================================== */}
-            {/* CR ONLY ROUTES                             */}
-            {/* ========================================== */}
-            <Route element={<ProtectedRoute allowedRoles={['CR', 'Admin']} />}>
+            {/* Note: 'President' now grants ultimate access instead of 'Admin' */}
+            <Route element={<ProtectedRoute allowedRoles={['CR', 'President']} />}>
               <Route path="/cr-dashboard" element={<CRDashboard />} />
             </Route>
 
-            {/* ========================================== */}
-            {/* ADMIN ONLY ROUTES (The whole Dashboard)    */}
-            {/* ========================================== */}
-            <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
-              {/* Anything inside here requires the 'Admin' role */}
+            <Route element={<ProtectedRoute allowedRoles={['General Secretary', 'President']} />}>
+              <Route path="/gs-dashboard" element={<GeneralSecretary />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['Joint GS', 'President']} />}>
+              <Route path="/joint-gs-dashboard" element={<JointGSDashboard />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['Finance Secretary', 'Finance Manager', 'President']} />}>
+              <Route path="/finance-dashboard" element={<FinanceSecretaryDashboard />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['Assistant Finance', 'President']} />}>
+              <Route path="/assistant-finance-dashboard" element={<AssistantFinanceDashboard />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['Event Manager', 'Event Coordinator', 'President']} />}>
+              <Route path="/event-manager-dashboard" element={<EventManagerDashboard />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['Media PR', 'President']} />}>
+              <Route path="/media-pr-dashboard" element={<MediaPRDashboard />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['Co Media', 'President']} />}>
+              <Route path="/co-media-dashboard" element={<CoMediaDashboard />} />
+            </Route>
+
+            {/* PRESIDENT DASHBOARD (The Hub) */}
+            <Route element={<ProtectedRoute allowedRoles={['President']} />}>
               <Route path="/dashboard" element={<DashboardLayout />}>
                 <Route index element={<Dashboard />} />
                 <Route path="members" element={<Members />} />
@@ -80,7 +111,6 @@ const App = () => (
               <Route path="/notifications" element={<Notifications />} />
             </Route>
 
-            {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
