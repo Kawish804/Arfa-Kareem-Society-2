@@ -6,7 +6,7 @@ import {
   Image as ImageIcon, BarChart3, GraduationCap, 
   Bell, MessageSquare, ShieldAlert, FileCheck, ClipboardList
 } from 'lucide-react';
-import { useSettings } from '@/context/SettingsContext.jsx'; // <-- CONTEXT IMPORT
+import { useSettings } from '@/context/SettingsContext.jsx';
 import styles from './DashboardLayout.module.css';
 
 const menuItems = [
@@ -21,6 +21,7 @@ const menuItems = [
   { path: '/dashboard/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/dashboard/gallery', icon: ImageIcon, label: 'Gallery' },
   { path: '/dashboard/participants', icon: Users, label: 'Participants' },
+  { path: '/dashboard/studentmanagement', icon: Users, label: 'Student Management' },
   { path: '/dashboard/reports', icon: BarChart3, label: 'Reports' },
   { path: '/dashboard/settings', icon: SettingsIcon, label: 'Settings' },
 ];

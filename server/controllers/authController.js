@@ -1,64 +1,115 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const nodemailer = require('nodemailer'); // <-- NEW IMPORT
+const nodemailer = require('nodemailer');
 
 // ==========================================
-// 1. SIGNUP LOGIC (WITH REAL EMAIL)
+// LIVE EMAIL CONFIGURATION
 // ==========================================
-// ==========================================
-// 1. SIGNUP LOGIC (With Admin Override Fallback)
-// ==========================================
-// server/controllers/authController.js
+const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
+// ==========================================
+// 1. SIGNUP LOGIC
+// ==========================================
 exports.signup = async (req, res) => {
     try {
-        const { fullName, email, phone, role /* ...other fields */ } = req.body;
+        // 1. Extract everything, including the batch
+        const { fullName, email, phone, password, role, department, semester, rollNo, timing, batch, reason } = req.body;
 
-        // 1. Standard check
-        const existingUser = await User.findOne({ email });
-        if (existingUser) return res.status(400).json({ message: "Email already registered." });
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            return res.status(400).json({ message: "User already exists with this email." });
+        }
 
-        const membershipId = Math.floor(100000 + Math.random() * 900000).toString();
+        // 2. Hash password correctly using bcrypt
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
-        // 2. Create the user in the DB (Inactive by default)
-        const newUser = new User({ ...req.body, membershipId, isActive: false, isApproved: false });
-        await newUser.save();
+        // 3. Generate a random 6-digit Membership ID for email verification
+        const generatedMembershipId = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // 3. ATTEMPT TO SEND EMAIL
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+        // 4. Create the new user
+        const newUser = new User({
+            fullName,
+            email,
+            phone,
+            password: hashedPassword, // Uses the properly hashed password!
+            role,
+            department,
+            semester,
+            rollNo,
+            timing,
+            batch, // Saves the year/batch for CR matching
+            reason,
+            membershipId: generatedMembershipId,
+            isActive: false,
+            isApproved: false
         });
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Arfa Kareem Society Code',
-            text: `Your code is ${membershipId}`
-        };
+        await newUser.save();
 
-        // Use a Promise-based approach to catch the error BEFORE sending the response
+        // 5. Send Live Email
         try {
+            const mailOptions = {
+                from: `"Arfa Kareem Society" <${process.env.EMAIL_USER}>`,
+                to: email,
+                subject: 'Your Verification Code - Arfa Kareem Society',
+                html: `
+                    <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
+                        <h2 style="color: #1e293b;">Welcome to Arfa Kareem Society!</h2>
+                        <p style="color: #475569; font-size: 16px;">Please use the verification code below to complete your registration:</p>
+                        <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; display: inline-block; border: 2px dashed #3b82f6; margin: 15px 0;">
+                            <h1 style="color: #3b82f6; letter-spacing: 5px; margin: 0; font-size: 32px;">${generatedMembershipId}</h1>
+                        </div>
+                        <p style="color: #64748b; font-size: 14px; margin-top: 20px;">If you did not request this, please ignore this email.</p>
+                    </div>
+                `
+            };
+
             await transporter.sendMail(mailOptions);
-            // EMAIL SUCCESS: Tell frontend to show "Enter Code" screen
-            return res.status(201).json({
-                success: true,
-                emailSent: true,
-                message: "Verification code sent to your email."
-            });
-        } catch (mailError) {
-            console.error("🔴 Mail Delivery Failed:", mailError.message);
-            // EMAIL FAILED: Tell frontend to show "Manual Activation" screen
-            return res.status(201).json({
-                success: true,
-                emailSent: false,
-                message: "We couldn't reach your email address. Manual activation is required."
-            });
+            console.log(`🟢 LIVE EMAIL SENT TO ${email}`);
+
+            res.status(201).json({ message: "User created", emailSent: true });
+
+        } catch (emailError) {
+            console.error("🔴 FAILED TO SEND LIVE EMAIL:", emailError);
+            // If the email fails, the user is still saved, so we trigger manual verification phase
+            res.status(201).json({ message: "User created, but email failed to send.", emailSent: false });
         }
 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("Signup Error:", error);
+        res.status(500).json({ message: "Server error during signup" });
+    }
+    try {
+        const mailOptions = { /* ... your email config ... */ };
+        await transporter.sendMail(mailOptions);
+        console.log(`🟢 LIVE EMAIL SENT TO ${email}`);
+
+        res.status(201).json({ message: "User created", emailSent: true });
+
+    } catch (emailError) {
+        console.error("🔴 FAILED TO SEND LIVE EMAIL:", emailError);
+
+        // 🚨 THE FIX: If email fails, trigger WhatsApp!
+        const waMessage = `Hello ${fullName}! This is the Arfa Kareem Society Admin. We noticed your email (${email}) bounced when you tried to sign up. No worries, your account is created! Your official Membership ID is: *${generatedMembershipId}*. Please go back to the website to activate your account.`;
+
+        // Send the message in the background
+        sendWhatsAppMessage(phone, waMessage);
+
+        // Tell the frontend that the email failed, but SMS was sent
+        res.status(201).json({
+            message: "Email invalid. Sent code via WhatsApp.",
+            emailSent: false
+        });
     }
 };
 
@@ -85,15 +136,27 @@ exports.login = async (req, res) => {
         }
 
         // 3. Check Role (Crucial: Must match exactly)
-        if (user.role !== role) {
+        if (role && user.role !== role) {
             console.log(`❌ Login Failed: Role mismatch. DB has ${user.role}, but user selected ${role}`);
             return res.status(400).json({ message: "Role mismatch. Please select the correct role." });
         }
 
-        // 4. Create Token
+        // 4. Check if Active (Email Verified)
+        if (!user.isActive && user.role !== 'Admin' && user.role !== 'President') {
+            return res.status(403).json({ message: "Please verify your email or wait for Admin activation." });
+        }
+
+        // 5. Create Token 
         const token = jwt.sign(
-            { id: user._id, role: user.role },
-            process.env.JWT_SECRET,
+            {
+                id: user._id,
+                role: user.role,
+                department: user.department,
+                semester: user.semester,
+                timing: user.timing,
+                batch: user.batch
+            },
+            process.env.JWT_SECRET || 'your_super_secret_key_change_me_later',
             { expiresIn: '1d' }
         );
 
@@ -117,16 +180,13 @@ exports.login = async (req, res) => {
 };
 
 // ==========================================
-// 3. ACTIVATE ACCOUNT LOGIC
+// 3. ACTIVATE ACCOUNT LOGIC (Frontend Verification)
 // ==========================================
 exports.activateAccount = async (req, res) => {
     try {
         const { membershipId, email } = req.body;
 
         console.log("\n--- NEW ACTIVATION ATTEMPT ---");
-        console.log("Frontend sent ID:", `"${membershipId}"`);
-        console.log("Frontend sent Email:", `"${email}"`);
-
         const cleanId = membershipId.trim();
         const cleanEmail = email.trim().toLowerCase();
 
@@ -137,8 +197,6 @@ exports.activateAccount = async (req, res) => {
             console.log("🔴 ERROR: Could not find any user with that ID in the database.");
             return res.status(404).json({ message: "Invalid Membership ID." });
         }
-
-        console.log("🟢 User found! Database email is:", `"${user.email}"`);
 
         // 2. Now manually compare the emails
         if (user.email.toLowerCase() !== cleanEmail) {
@@ -163,6 +221,10 @@ exports.activateAccount = async (req, res) => {
         res.status(500).json({ error: "Server error during activation." });
     }
 };
+
+// ==========================================
+// 4. ADMIN MANUAL ACTIVATION LOGIC
+// ==========================================
 exports.manuallyActivateUser = async (req, res) => {
     try {
         const userId = req.params.id;
@@ -174,8 +236,6 @@ exports.manuallyActivateUser = async (req, res) => {
 
         // Force the account to be active
         user.isActive = true;
-        // Optional: You can also auto-approve them here if you want 1-click activation & approval
-        // user.isApproved = true; 
 
         await user.save();
 
@@ -183,5 +243,27 @@ exports.manuallyActivateUser = async (req, res) => {
     } catch (error) {
         console.error("🔴 ADMIN ACTIVATION ERROR:", error);
         res.status(500).json({ error: "Server error during manual activation." });
+    }
+};
+
+// ==========================================
+// 5. CHECK USER STATUS (Polling)
+// ==========================================
+exports.checkUserStatus = async (req, res) => {
+    try {
+        const { email } = req.params;
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "User no longer exists (Rejected/Deleted)" });
+        }
+
+        res.status(200).json({
+            isActive: user.isActive,
+            isApproved: user.isApproved,
+            fullName: user.fullName
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Server error" });
     }
 };

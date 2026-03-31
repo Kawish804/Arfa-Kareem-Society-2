@@ -19,6 +19,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const settingRoutes = require('./routes/settingsRoutes');
+const studentRoutes = require('./routes/studentRoutes');
 
 const app = express();
 
@@ -88,6 +89,7 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/students', studentRoutes);
 
 // --- START SERVER ---
 const PORT = process.env.PORT || 5000;

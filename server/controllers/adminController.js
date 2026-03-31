@@ -1,7 +1,8 @@
 const User = require('../models/User');
 const FundCollection = require('../models/FundCollection');
 const Expense = require('../models/Expense');
-const Event = require('../models/Event'); // <-- Imported here
+const Event = require('../models/Event');
+const ClassStudent = require('../models/ClassStudent');
 const nodemailer = require('nodemailer');
 
 // Setup Nodemailer transporter
@@ -168,5 +169,31 @@ exports.transferPresidency = async (req, res) => {
         res.status(200).json({ message: "Presidency transferred successfully!" });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+exports.uploadClassList = async (req, res) => {
+    try {
+        const { students } = req.body; // Expecting an array of student objects
+
+        if (!students || students.length === 0) {
+            return res.status(400).json({ message: "No students provided." });
+        }
+
+        // Insert all students into the database at once
+        await ClassStudent.insertMany(students);
+
+        res.status(201).json({ message: `${students.length} students uploaded successfully!` });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to upload class list." });
+    }
+};
+
+// 2. Admin Views All Class Funds
+exports.getAllClassFunds = async (req, res) => {
+    try {
+        const allStudents = await ClassStudent.find().sort({ department: 1, semester: 1 });
+        res.status(200).json(allStudents);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch funds." });
     }
 };

@@ -5,7 +5,7 @@ import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Select from '@/components/ui/Select.jsx';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
-import { useAuth } from '@/context/AuthContext.jsx'; // <--- IMPORTANT: For global login state
+import { useAuth } from '@/context/AuthContext.jsx';
 import styles from './Login.module.css';
 
 const Login = () => {
@@ -14,10 +14,10 @@ const Login = () => {
   const [role, setRole] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login } = useAuth(); // <--- This function saves user to localStorage/State
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -37,25 +37,29 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // 1. Save user data to Global Auth Context
-        // data.user should contain { id, fullName, email, role } from your backend
-        login(data.user); 
+        // --- 🔴 THE FIX IS HERE! 🔴 ---
+        // Changed localStorage to sessionStorage so tabs stay independent!
+        sessionStorage.setItem('token', data.token);
+        sessionStorage.setItem('userRole', data.user.role);
+
+        // Save user data to Global Auth Context
+        login(data.user);
 
         toast({ title: 'Login Successful', description: `Welcome back, ${data.user.fullName}!` });
 
-        // 2. Role-Based Redirection
-        if (data.user.role === 'Admin') {
+        // Role-Based Redirection
+        if (data.user.role === 'Admin' || data.user.role === 'President') {
           navigate('/dashboard');
         } else if (data.user.role === 'CR') {
           navigate('/cr-dashboard');
         } else {
-          navigate('/student'); // Default for Members/Students
+          navigate('/student');
         }
       } else {
-        toast({ 
-          title: 'Login Failed', 
-          description: data.message || data.error || 'Invalid credentials', 
-          variant: 'destructive' 
+        toast({
+          title: 'Login Failed',
+          description: data.message || data.error || 'Invalid credentials',
+          variant: 'destructive'
         });
       }
     } catch (error) {
@@ -78,22 +82,22 @@ const Login = () => {
         <form onSubmit={handleLogin} className={styles.form}>
           <div className={styles.field}>
             <label className={styles.label}>Email</label>
-            <Input 
-              type="email" 
-              placeholder="your@email.edu" 
-              value={email} 
-              onChange={e => setEmail(e.target.value)} 
+            <Input
+              type="email"
+              placeholder="your@email.edu"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               required
             />
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Password</label>
             <div className={styles.passwordWrap}>
-              <Input 
-                type={showPassword ? 'text' : 'password'} 
-                placeholder="Enter password" 
-                value={password} 
-                onChange={e => setPassword(e.target.value)} 
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 required
               />
               <button type="button" className={styles.eyeBtn} onClick={() => setShowPassword(!showPassword)}>

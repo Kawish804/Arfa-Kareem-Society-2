@@ -1,0 +1,86 @@
+.page { min-height: 100vh; background: var(--background); }
+.header { background: var(--card); border-bottom: 1px solid var(--border); box-shadow: var(--shadow); }
+.headerInner { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+.headerLeft { display: flex; align-items: center; gap: 12px; }
+.headerLogo { width: 40px; height: 40px; border-radius: 10px; background: hsl(340, 82%, 52%); color: #fff; display: flex; align-items: center; justify-content: center; }
+.headerTitle { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+.headerSub { font-size: 0.8125rem; color: var(--text-muted); }
+.headerRight { display: flex; align-items: center; gap: 12px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.tabs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px; margin-bottom: 24px; overflow-x: auto; }
+.tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border: none; background: transparent; border-radius: var(--radius-sm); font-size: 0.8125rem; font-weight: 500; color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+.tab:hover { background: var(--primary-light); color: var(--text); }
+.tabActive { background: var(--primary); color: #fff; }
+.tabActive:hover { background: var(--primary-hover); color: #fff; }
+.content { min-height: 400px; }
+.sectionTitle { font-size: 1.375rem; font-weight: 700; margin-bottom: 20px; color: var(--text); }
+.sectionHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.sectionHeader .sectionTitle { margin-bottom: 0; }
+
+/* Gallery */
+.galleryGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.galleryItem { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.galleryImg { width: 100%; height: 180px; object-fit: cover; cursor: pointer; transition: transform 0.3s; }
+.galleryImg:hover { transform: scale(1.03); }
+.galleryOverlay { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; }
+.galleryCaption { font-size: 0.8125rem; color: var(--text); font-weight: 500; }
+.galleryActions { display: flex; gap: 4px; }
+.iconBtn { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 6px; cursor: pointer; color: var(--text-muted); transition: all 0.2s; }
+.iconBtn:hover { background: var(--primary-light); color: var(--text); }
+.galleryBadge { position: absolute; top: 8px; left: 8px; }
+
+/* Social Posts */
+.postStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; max-width: 500px; }
+.pStat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; box-shadow: var(--shadow); }
+.pStatNum { display: block; font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+.pStatLabel { font-size: 0.8125rem; color: var(--text-muted); }
+.postGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.postCard { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.postTop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.platformTag { font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+.platformInsta { background: hsl(340, 82%, 93%); color: hsl(340, 82%, 42%); }
+.platformFb { background: hsl(217, 91%, 93%); color: hsl(217, 91%, 42%); }
+.platformLi { background: hsl(199, 89%, 93%); color: hsl(199, 89%, 35%); }
+.postContent { font-size: 0.875rem; color: var(--text); line-height: 1.6; margin-bottom: 12px; }
+.postMeta { display: flex; justify-content: space-between; }
+.publishBtn { margin-top: 12px; }
+
+/* Coverage */
+.coverageGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.coverageCard { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.coverageTitle { font-size: 1rem; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.coverageMeta { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+.coveragePhotos { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--text-muted); }
+
+/* Tables */
+.tableWrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.table th { text-align: left; padding: 12px 16px; font-weight: 500; color: var(--text-muted); font-size: 0.8125rem; border-bottom: 1px solid var(--border); }
+.table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background: var(--primary-light); }
+.bold { font-weight: 500; }
+.muted { color: var(--text-muted); font-size: 0.8125rem; }
+
+/* Notifications */
+.notifList { display: flex; flex-direction: column; gap: 8px; }
+.notifItem { display: flex; align-items: flex-start; gap: 12px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.notifUnread { border-left: 3px solid var(--secondary); }
+.notifDot { width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); margin-top: 6px; flex-shrink: 0; }
+.notifContent { flex: 1; }
+.notifTitle { font-size: 0.875rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.notifDate { font-size: 0.75rem; color: var(--text-light); }
+
+/* Forms */
+.formFields { display: flex; flex-direction: column; gap: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 0.8125rem; font-weight: 500; color: var(--text); }
+
+@media (max-width: 768px) {
+  .headerInner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .tab span { display: none; }
+  .galleryGrid { grid-template-columns: 1fr 1fr; }
+  .postGrid { grid-template-columns: 1fr; }
+  .coverageGrid { grid-template-columns: 1fr; }
+  .postStats { grid-template-columns: 1fr; max-width: none; }
+}

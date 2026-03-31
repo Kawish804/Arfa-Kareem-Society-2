@@ -1,0 +1,424 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tab:hover { color: var(--text); }
+.tabActive {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.content { min-height: 300px; }
+
+/* Upload Section */
+.uploadSection {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.uploadCard, .templateCard {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 32px;
+}
+
+.uploadIcon {
+  color: var(--primary);
+  margin-bottom: 16px;
+}
+
+.uploadTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.uploadDesc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.uploadArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 24px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.uploadArea:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.uploadHint {
+  font-size: 0.75rem;
+  color: var(--text-light);
+}
+
+.templateCard h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.templatePreview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+}
+
+.templatePreview code {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+}
+
+.templateHint {
+  font-size: 0.75rem;
+  color: var(--text-light);
+}
+
+/* Add Student Section */
+.addSection {
+  max-width: 700px;
+}
+
+.formCard {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 28px;
+}
+
+.formTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 24px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.formActions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Student List */
+.listSection {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+}
+
+.searchInput {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px 0 36px;
+  font-size: 0.875rem;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.searchInput:focus {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.filterSelect {
+  width: 140px;
+}
+
+/* Stats Row */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.statBox {
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  padding: 16px;
+  text-align: center;
+}
+
+.statNum {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.statPaid .statNum { color: var(--success); }
+.statUnpaid .statNum { color: var(--destructive); }
+.statPending .statNum { color: var(--warning); }
+
+.statLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Table */
+.tableWrap {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.table th {
+  text-align: left;
+  padding: 12px 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.table tbody tr:hover {
+  background: var(--primary-light);
+}
+
+.emptyRow {
+  text-align: center;
+  color: var(--text-light);
+  padding: 40px 14px !important;
+}
+
+.nameCell {
+  font-weight: 500;
+}
+
+.rollCode {
+  background: var(--background);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  color: var(--primary);
+}
+
+/* Fund Status */
+.fundBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fundEditIcon {
+  color: var(--text-light);
+  transition: color 0.2s;
+}
+
+.fundBadge:hover .fundEditIcon {
+  color: var(--primary);
+}
+
+.fundEdit {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.fundOption {
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  cursor: pointer;
+  background: var(--card);
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.fundPaid { color: var(--success); border-color: var(--success); }
+.fundPaid:hover { background: var(--success-light); }
+.fundUnpaid { color: var(--destructive); border-color: var(--destructive); }
+.fundUnpaid:hover { background: var(--destructive-light); }
+.fundPending { color: var(--warning); border-color: var(--warning); }
+.fundPending:hover { background: rgba(245, 158, 11, 0.08); }
+
+.fundCancel {
+  background: none;
+  border: none;
+  color: var(--text-light);
+  padding: 2px;
+  display: flex;
+}
+
+/* Action Buttons */
+.actionBtns {
+  display: flex;
+  gap: 6px;
+}
+
+.editBtn, .deleteBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.editBtn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.deleteBtn:hover {
+  color: var(--destructive);
+  border-color: var(--destructive);
+  background: var(--destructive-light);
+}
+
+@media (max-width: 768px) {
+  .uploadSection { grid-template-columns: 1fr; }
+  .formGrid { grid-template-columns: 1fr; }
+  .statsRow { grid-template-columns: repeat(2, 1fr); }
+  .filterGroup { flex-wrap: wrap; }
+  .filterSelect { width: 120px; }
+}

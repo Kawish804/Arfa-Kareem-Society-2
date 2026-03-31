@@ -7,7 +7,7 @@ const expenseSchema = new mongoose.Schema({
     amount: { type: Number, required: true },
     date: { type: String, default: '' },
     receiptName: { type: String, default: null },
-    receiptData: { type: String, default: null }, // Stores base64 string for images/pdfs
+    receiptData: { type: String, default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Expense', expenseSchema);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GraduationCap, Eye, EyeOff, UserPlus, CheckCircle, ArrowLeft, KeyRound, AlertCircle } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
@@ -12,15 +12,15 @@ const Signup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Phases: 'form' -> 'verify' -> 'success' -> 'manual'
   const [phase, setPhase] = useState('form');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [membershipId, setMembershipId] = useState('');
 
+  // ADDED: 'batch' to the initial form state
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', password: '', department: '',
-    semester: '', rollNo: '', timing: '', role: '', reason: '',
+    semester: '', rollNo: '', timing: '', batch: '', role: '', reason: '',
   });
   const [errors, setErrors] = useState({});
 
@@ -48,13 +48,18 @@ const Signup = () => {
         e.rollNo = 'Format must be 22XXXXXX-XXX';
       }
       if (!form.timing) e.timing = 'Select your batch timing';
+      if (!form.batch) e.batch = 'Select your year batch'; // ADDED: Batch validation
     }
     return e;
   };
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
-    // ... validation logic ...
+    const errs = validate();
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -68,17 +73,15 @@ const Signup = () => {
 
       if (response.ok) {
         if (data.emailSent) {
-          // SCENARIO A: Email worked! Show them the code input box.
           toast({ title: "Code Sent!", description: "Please check your inbox." });
           setPhase('verify');
         } else {
-          // SCENARIO B: Email failed (fake email). Skip the code box!
           toast({
             title: "Email Undeliverable",
             description: "Your account is created, but needs manual activation.",
             variant: "warning"
           });
-          setPhase('manual'); // Show the "Contact Admin" screen immediately
+          setPhase('manual');
         }
       } else {
         toast({ title: "Error", description: data.message, variant: "destructive" });
@@ -120,51 +123,63 @@ const Signup = () => {
     }
   };
 
-  // ==========================================
-  // UI: MANUAL ACTIVATION SCREEN (Email Failed)
-  // ==========================================
+  useEffect(() => {
+    let interval;
+    if (phase === 'manual' || phase === 'verify') {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`http://localhost:5000/api/auth/status/${form.email}`);
+          const data = await res.json();
+
+          if (res.status === 404) {
+            toast({ title: "Request Rejected", description: "Your application was declined by the Admin.", variant: "destructive" });
+            setPhase('form');
+            clearInterval(interval);
+          } else if (data.isActive) {
+            toast({ title: "Account Activated!", description: "Admin has verified your account." });
+            setPhase('success');
+            clearInterval(interval);
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [phase, form.email]);
+
   if (phase === 'manual') {
     return (
       <div className={styles.page}>
         <div className={styles.successCard}>
-          <div className={styles.successIcon} style={{ color: 'var(--warning-dark)', background: 'var(--warning-light)' }}>
+          <div className={styles.successIcon} style={{ color: '#856404', background: '#fff3cd' }}>
             <AlertCircle size={48} />
           </div>
-          <h2 className={styles.successTitle}>Manual Activation Required</h2>
-          <p className={styles.successText}>
-            We could not deliver the verification code to <strong>{form.email}</strong>.
-          </p>
-          <div className={styles.successDetails} style={{ background: '#fff3cd', border: '1px solid #ffe69c' }}>
-            <p style={{ margin: 0, fontSize: '0.875rem', color: '#664d03', textAlign: 'center' }}>
-              Your account has been registered, but it is currently <b>Inactive</b>. Please contact the Society Admin or your CR to manually activate your account.
-            </p>
+          <h2 className={styles.successTitle}>Waiting for Admin...</h2>
+          <p className={styles.successText}>We couldn't reach <strong>{form.email}</strong>.</p>
+          <div className={styles.statusBox} style={{ background: '#e2e8f0', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+            <p style={{ margin: 0, fontWeight: 'bold', color: '#475569' }}>🔄 Live Status: Manual Verification Pending</p>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '5px' }}>Please keep this page open or contact the Society President. This screen will update automatically once you are approved.</p>
           </div>
           <div className={styles.successBtns}>
-            <Button onClick={() => navigate('/')}>Back to Portal</Button>
+            <Button variant="outline" onClick={() => navigate('/')}>Back to Home</Button>
           </div>
         </div>
       </div>
     );
   }
 
-  // ==========================================
-  // UI: SUCCESS SCREEN (Email Verified)
-  // ==========================================
   if (phase === 'success') {
     return (
       <div className={styles.page}>
         <div className={styles.successCard}>
           <div className={styles.successIcon}><CheckCircle size={48} /></div>
           <h2 className={styles.successTitle}>Account Activated!</h2>
-          <p className={styles.successText}>
-            Your email has been verified. Your request to join as a <strong>{form.role}</strong> has been sent to the admin.
-          </p>
+          <p className={styles.successText}>Your email has been verified. Your request to join as a <strong>{form.role}</strong> has been sent to the admin.</p>
           <div className={styles.successDetails}>
             <div className={styles.detailRow}><span>Name</span><span>{form.fullName}</span></div>
             <div className={styles.detailRow}><span>Role</span><span>{form.role}</span></div>
-            {form.role !== 'Visitor' && (
-              <div className={styles.detailRow}><span>Roll No</span><span>{form.rollNo}</span></div>
-            )}
+            {form.role !== 'Visitor' && <div className={styles.detailRow}><span>Roll No</span><span>{form.rollNo}</span></div>}
             <div className={styles.detailRow}><span>Status</span><span className={styles.pending}>Pending Admin Approval</span></div>
           </div>
           <div className={styles.successBtns}>
@@ -176,9 +191,6 @@ const Signup = () => {
     );
   }
 
-  // ==========================================
-  // UI: VERIFICATION SCREEN
-  // ==========================================
   if (phase === 'verify') {
     return (
       <div className={styles.page}>
@@ -190,16 +202,10 @@ const Signup = () => {
               We have sent a <strong>Membership ID</strong> to <br /><b>{form.email}</b>.
             </p>
           </div>
-
           <form className={styles.form} onSubmit={handleVerificationSubmit}>
             <div className={styles.field} style={{ marginTop: '20px' }}>
               <label className={styles.label}>Enter Membership ID *</label>
-              <Input
-                placeholder="e.g. 123456"
-                value={membershipId}
-                onChange={e => setMembershipId(e.target.value)}
-                style={{ textAlign: 'center', fontSize: '1.25rem', letterSpacing: '2px' }}
-              />
+              <Input placeholder="e.g. 123456" value={membershipId} onChange={e => setMembershipId(e.target.value)} style={{ textAlign: 'center', fontSize: '1.25rem', letterSpacing: '2px' }} />
             </div>
             <Button type="submit" size="lg" className={styles.submitBtn} disabled={loading}>
               {loading ? 'Verifying...' : 'Verify & Activate Account'}
@@ -210,9 +216,6 @@ const Signup = () => {
     );
   }
 
-  // ==========================================
-  // UI: SIGNUP FORM
-  // ==========================================
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -239,8 +242,6 @@ const Signup = () => {
           <div className={styles.field}>
             <label className={styles.label}>Email Address *</label>
             <Input type="email" placeholder="your.email@gmail.com" value={form.email} onChange={e => set('email', e.target.value)} />
-
-            {/* THE NEW WARNING TEXT */}
             <span style={{ fontSize: '0.75rem', color: 'var(--warning-dark)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <AlertCircle size={12} /> Please use an active Google/Gmail account. Unreachable emails will require manual Admin activation.
             </span>
@@ -283,6 +284,7 @@ const Signup = () => {
                     <option value="Software Engineering">Software Engineering</option>
                     <option value="Information Technology">Information Technology</option>
                     <option value="Electrical Engineering">Electrical Engineering</option>
+                    <option value="Mathematics">Mathematics</option>
                     <option value="Business Administration">Business Administration</option>
                     <option value="Other">Other</option>
                   </Select>
@@ -292,7 +294,7 @@ const Signup = () => {
                   <label className={styles.label}>Semester *</label>
                   <Select value={form.semester} onChange={e => set('semester', e.target.value)}>
                     <option value="">Select semester</option>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <option key={s} value={`${s}th Semester`}>{s}th Semester</option>)}
+                    {['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'].map(s => <option key={s} value={`${s}`}>{s} Semester</option>)}
                   </Select>
                   {errors.semester && <span className={styles.error}>{errors.semester}</span>}
                 </div>
@@ -305,7 +307,7 @@ const Signup = () => {
                   {errors.rollNo && <span className={styles.error}>{errors.rollNo}</span>}
                 </div>
                 <div className={styles.field}>
-                  <label className={styles.label}>Timing / Batch *</label>
+                  <label className={styles.label}>Timing *</label>
                   <Select value={form.timing} onChange={e => set('timing', e.target.value)}>
                     <option value="">Select timing</option>
                     <option value="Morning">Morning</option>
@@ -313,6 +315,16 @@ const Signup = () => {
                   </Select>
                   {errors.timing && <span className={styles.error}>{errors.timing}</span>}
                 </div>
+              </div>
+
+              {/* ADDED: BATCH SELECTION FOR CR MATCHING */}
+              <div className={styles.field}>
+                <label className={styles.label}>Year / Batch *</label>
+                <Select value={form.batch} onChange={e => set('batch', e.target.value)}>
+                  <option value="">Select batch</option>
+                  {['2021', '2022', '2023', '2024', '2025'].map(b => <option key={b} value={b}>{b}</option>)}
+                </Select>
+                {errors.batch && <span className={styles.error}>{errors.batch}</span>}
               </div>
             </>
           )}
@@ -339,4 +351,4 @@ const Signup = () => {
   );
 };
 
-export default Signup;
+export default Signup;  

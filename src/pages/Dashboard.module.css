@@ -4,7 +4,8 @@
   gap: 24px;
 }
 
-.header {}
+.header {
+}
 
 .title {
   font-size: 1.5rem;
@@ -35,3 +36,4 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+  

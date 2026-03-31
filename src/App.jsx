@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ToastProvider } from '../src/components/Toast/ToastProvider';
 import { SettingsProvider } from '../src/context/SettingsContext.jsx';
-import { AuthProvider } from '../src/context/AuthContext.jsx'; // <-- IMPORT AUTH PROVIDER
-import ProtectedRoute from '../src/components/ProtectedRoute.jsx'; // <-- IMPORT THE GUARD
+import { AuthProvider } from '../src/context/AuthContext.jsx';
+import ProtectedRoute from '../src/components/ProtectedRoute.jsx'; 
 
 import DashboardLayout from '../src/components/DashboardLayout.jsx';
 import Home from '../src/pages/Home.jsx';
@@ -28,6 +28,7 @@ import Chat from '../src/pages/Chat.jsx';
 import Contribute from '../src/pages/Contribute.jsx';
 import Notifications from '../src/pages/Notifications.jsx';
 import NotFound from '../src/pages/NotFound.jsx';
+import StudentManagement from '../src/pages/StudentManagement.jsx';
 
 const App = () => (
   <ToastProvider>
@@ -73,6 +74,7 @@ const App = () => (
                 <Route path="participants" element={<Participants />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="studentmanagement" element={<StudentManagement />} />
               </Route>
               <Route path="/chat" element={<Chat />} />
               <Route path="/notifications" element={<Notifications />} />
