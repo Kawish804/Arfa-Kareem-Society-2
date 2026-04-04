@@ -43,14 +43,13 @@ const Login = () => {
         // Direct them based on what the DATABASE says their role is
         const userRole = data.user.role;
         if (userRole === 'President') navigate('/dashboard');
-        else if (userRole === 'CR') navigate('/cr-dashboard');
+        else if (userRole === 'Class Representative') navigate('/cr-dashboard');
         else if (userRole === 'General Secretary') navigate('/gs-dashboard');
-        else if (userRole === 'Joint GS') navigate('/joint-gs-dashboard');
-        else if (userRole === 'Finance Secretary' || userRole === 'Finance Manager') navigate('/finance-dashboard');
+        else if (userRole === 'Joint General Secretary') navigate('/joint-gs-dashboard');
+        else if (userRole === 'Finance Head') navigate('/finance-dashboard');
         else if (userRole === 'Assistant Finance') navigate('/assistant-finance-dashboard');
-        else if (userRole === 'Event Manager' || userRole === 'Event Coordinator') navigate('/event-manager-dashboard');
-        else if (userRole === 'Media PR') navigate('/media-pr-dashboard');
-        else if (userRole === 'Co Media') navigate('/co-media-dashboard');
+        else if (userRole === 'Media Manager') navigate('/media-pr-dashboard');
+        else if (userRole === 'Co-Media Manager') navigate('/co-media-dashboard');
         else navigate('/student');
       } else {
         toast({ title: 'Login Failed', description: data.message || 'Invalid credentials', variant: 'destructive' });

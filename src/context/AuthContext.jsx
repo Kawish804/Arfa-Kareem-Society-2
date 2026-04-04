@@ -3,12 +3,22 @@ import { createContext, useState, useContext, useEffect } from 'react';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null); // Example: { name: 'Ali', role: 'Admin' }
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // When the app loads, check if the user is already logged in (saved in Local Storage)
+  // When the app loads, check if the user is already logged in for this specific tab
   useEffect(() => {
-    const savedUser = localStorage.getItem('society_user');
+    // --- 🔴 KILL THE GHOSTS 🔴 ---
+    // Aggressively clear old localStorage from previous tests so tabs don't bleed!
+    localStorage.removeItem('society_user');
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
+    // -----------------------------
+
+    // Strictly use sessionStorage so each tab's login is 100% independent
+    const savedUser = sessionStorage.getItem('society_user');
+    
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
@@ -17,17 +27,22 @@ export const AuthProvider = ({ children }) => {
 
   const login = (userData) => {
     setUser(userData);
-    localStorage.setItem('society_user', JSON.stringify(userData)); // Save session
+    // Save session strictly to this tab
+    sessionStorage.setItem('society_user', JSON.stringify(userData)); 
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('society_user'); // Clear session
+    // Clear everything for this tab when logging out
+    sessionStorage.removeItem('society_user'); 
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('userRole');
   };
 
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {children}
+      {/* We wait until loading is false before rendering children so protected routes don't flash */}
+      {!loading && children} 
     </AuthContext.Provider>
   );
 };

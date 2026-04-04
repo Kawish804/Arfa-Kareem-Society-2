@@ -10,11 +10,8 @@ const userSchema = new mongoose.Schema({
         required: true,
         // The definitive list of roles
         enum: [
-            'President', 'General Secretary', 'Joint GS', 
-            'Finance Secretary', 'Assistant Finance', 
-            'Event Manager', 'Event Coordinator', 
-            'Media PR', 'Co Media', 'CR', 
-            'Student', 'Member', 'Visitor'
+            'President', 'General Secretary', 'Finance Head', 'Assistant Finance Head',
+            'Joint General Secretary', 'Media Manager', 'Co-Media Manager', 'Class Representative'
         ]
     },
     

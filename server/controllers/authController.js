@@ -14,27 +14,26 @@ const transporter = nodemailer.createTransport({
 });
 
 // ==========================================
-// NEW: GET AVAILABLE ROLES
+// GET AVAILABLE ROLES
 // ==========================================
 exports.getAvailableRoles = async (req, res) => {
     try {
         // These roles can only have ONE user
         const singletonRoles = [
-            'President', 'General Secretary', 'Joint GS', 
-            'Finance Secretary', 'Assistant Finance', 
-            'Event Manager', 'Event Coordinator', 
-            'Media PR', 'Co Media', 'CR'
+            'President', 'General Secretary', 'Finance Head', 'Assistant Finance Head',
+            'Joint General Secretary', 'Media Manager', 'Co-Media Manager'
         ];
-        
+
         // Find which of these are currently taken
         const takenRoles = await User.distinct('role', { role: { $in: singletonRoles } });
-        
+
         // Filter out the taken ones
         const availableSingletonRoles = singletonRoles.filter(role => !takenRoles.includes(role));
-        
-        // These roles can have infinite users
-        const multipleRoles = ['Student', 'Member', 'Visitor'];
 
+        // These roles can have INFINITE users (Moved Class Representative here!)
+        const multipleRoles = ['Class Representative'];
+
+        // Combine and send to the frontend
         res.status(200).json([...availableSingletonRoles, ...multipleRoles]);
     } catch (error) {
         res.status(500).json({ error: "Failed to fetch roles." });
@@ -51,6 +50,22 @@ exports.signup = async (req, res) => {
         const userExists = await User.findOne({ email });
         if (userExists) {
             return res.status(400).json({ message: "User already exists with this email." });
+        }
+
+        if (role === 'Class Representative') {
+            const existingCR = await User.findOne({
+                role: 'Class Representative',
+                department: department,
+                batch: batch,
+                semester: semester,
+                timing: timing
+            });
+
+            if (existingCR) {
+                return res.status(400).json({
+                    message: `A Class Representative already exists for ${department} ${semester} (${timing} timing).`
+                });
+            }
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -83,13 +98,12 @@ exports.signup = async (req, res) => {
 };
 
 // ==========================================
-// LOGIN LOGIC (SIMPLIFIED!)
+// LOGIN LOGIC
 // ==========================================
 exports.login = async (req, res) => {
     try {
-        // Notice: We NO LONGER check req.body.role! The DB knows who they are.
         const { email, password } = req.body;
-        
+
         const user = await User.findOne({ email });
         if (!user) return res.status(400).json({ message: "Invalid email or password." });
 
@@ -127,15 +141,15 @@ exports.transferRole = async (req, res) => {
         const targetUser = await User.findOne({ email: targetUserEmail });
 
         if (!targetUser) return res.status(404).json({ message: "User with that email not found." });
-        
+
+        // Ensure target user is just a student or member before giving them a top role
         if (targetUser.role !== 'Student' && targetUser.role !== 'Member') {
             return res.status(400).json({ message: "Target user already holds a leadership position." });
         }
 
-        // Swap roles
         const roleToTransfer = currentUser.role;
         targetUser.role = roleToTransfer;
-        currentUser.role = 'Student'; // Demote current user to Student
+        currentUser.role = 'Student';
 
         await targetUser.save();
         await currentUser.save();
@@ -153,7 +167,7 @@ exports.activateAccount = async (req, res) => {
         if (!user) return res.status(404).json({ message: "Invalid Membership ID." });
         if (user.email.toLowerCase() !== email.trim().toLowerCase()) return res.status(404).json({ message: "Email mismatch." });
         if (user.isActive) return res.status(400).json({ message: "Account already active." });
-        
+
         user.isActive = true;
         await user.save();
         res.status(200).json({ message: "Account activated." });

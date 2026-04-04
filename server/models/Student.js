@@ -12,7 +12,8 @@ const studentSchema = new mongoose.Schema({
         type: String, 
         enum: ['Paid', 'Unpaid', 'Pending'], 
         default: 'Unpaid' 
-    }
+    },
+    arrears: { type: Number, default: 0 }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Student', studentSchema);

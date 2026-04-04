@@ -3,6 +3,7 @@ import { Bell, CheckCheck, Trash2, Megaphone, CalendarDays, FileCheck, Wallet, A
 import Button from '../components/ui/Button.jsx';
 import Badge from '../components/ui/Badge.jsx';
 import { useToast } from '../components/Toast/ToastProvider.jsx';
+import { useAuth } from '../context/AuthContext.jsx'; // 🔴 1. Imported Auth Context
 import styles from './Notifications.module.css';
 
 const typeIcons = {
@@ -15,27 +16,48 @@ const typeIcons = {
 
 const Notifications = () => {
   const { toast } = useToast();
-  const [notifs, setNotifs] = useState([]); // Dynamic state starts empty
+  const { user } = useAuth(); // 🔴 2. Get the dynamically logged-in user
+  const [notifs, setNotifs] = useState([]); 
   const [filter, setFilter] = useState('all');
 
   // FETCH DYNAMIC NOTIFICATIONS
   useEffect(() => {
-    fetch('http://localhost:5000/api/notifications/all')
+    fetch('http://localhost:5000/api/notifications/all', {
+      // 🔴 3. Fixed: Added the secure session token!
+      headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
+    })
       .then(res => res.json())
       .then(data => setNotifs(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching notifications:", err));
   }, []);
 
-  const unreadCount = notifs.filter(n => !n.read).length;
+  // 🔴 4. THE REAL-WORLD LOGIC FILTER
+  // Hide the President's own broadcasted announcements/events from their own feed!
+  const displayNotifs = notifs.filter(n => {
+    const isCurrentUserPresident = user?.role === 'President' || user?.role === 'Admin';
+    const isBroadcastFromPresident = n.type?.toLowerCase() === 'announcement' || n.type?.toLowerCase() === 'event';
+    
+    // If I am the President, and this is a global broadcast, hide it from me.
+    if (isCurrentUserPresident && isBroadcastFromPresident) {
+      return false; 
+    }
+    // Everyone else (CRs, Students, etc.) sees everything. President still sees Requests/Funds.
+    return true;
+  });
+
+  const unreadCount = displayNotifs.filter(n => !n.read).length;
   
-  const filtered = filter === 'all' ? notifs
-    : filter === 'unread' ? notifs.filter(n => !n.read)
-    : notifs.filter(n => n.type === filter);
+  const filtered = filter === 'all' ? displayNotifs
+    : filter === 'unread' ? displayNotifs.filter(n => !n.read)
+    : displayNotifs.filter(n => n.type?.toLowerCase() === filter);
 
   // DYNAMIC MARK ALL READ
   const markAllRead = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/notifications/mark-all-read', { method: 'PUT' });
+      const res = await fetch('http://localhost:5000/api/notifications/mark-all-read', { 
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` } // 🔴 Secured
+      });
       if (res.ok) {
         setNotifs(prev => prev.map(n => ({ ...n, read: true })));
         toast({ title: 'All notifications marked as read' });
@@ -53,7 +75,10 @@ const Notifications = () => {
 
     try {
       setNotifs(prev => prev.map(n => (n._id === id || n.id === id) ? { ...n, read: true } : n));
-      await fetch(`http://localhost:5000/api/notifications/${id}/read`, { method: 'PUT' });
+      await fetch(`http://localhost:5000/api/notifications/${id}/read`, { 
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` } // 🔴 Secured
+      });
     } catch (error) {
       console.error("Failed to mark as read", error);
     }
@@ -62,7 +87,10 @@ const Notifications = () => {
   // DYNAMIC DELETE
   const deleteNotif = async (id) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/notifications/${id}`, { method: 'DELETE' });
+      const res = await fetch(`http://localhost:5000/api/notifications/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` } // 🔴 Secured
+      });
       if (res.ok) {
         setNotifs(prev => prev.filter(n => n._id !== id && n.id !== id));
         toast({ title: 'Notification removed' });
@@ -106,7 +134,7 @@ const Notifications = () => {
 
       <div className={styles.list}>
         {filtered.length > 0 ? filtered.map(n => {
-          const notifId = n._id || n.id; // Support MongoDB _id
+          const notifId = n._id || n.id; 
           const Icon = typeIcons[n.type?.toLowerCase()] || Bell;
           
           return (
@@ -117,9 +145,9 @@ const Notifications = () => {
               <div className={styles.itemContent}>
                 <div className={styles.itemTop}>
                   <h3 className={styles.itemTitle}>{n.title}</h3>
-                  <span className={styles.itemDate}>{n.date}</span>
+                  <span className={styles.itemDate}>{n.date || new Date(n.createdAt).toLocaleDateString('en-PK')}</span>
                 </div>
-                <p className={styles.itemMsg}>{n.message}</p>
+                <p className={styles.itemMsg}>{n.message || n.description}</p>
                 <div className={styles.itemMeta}>
                   <Badge variant="secondary">{n.type}</Badge>
                   {!n.read && <span className={styles.dot} />}

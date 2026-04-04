@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ToastProvider } from '../src/components/Toast/ToastProvider';
 import { SettingsProvider } from '../src/context/SettingsContext.jsx';
 import { AuthProvider } from '../src/context/AuthContext.jsx';
-import ProtectedRoute from '../src/components/ProtectedRoute.jsx'; 
+import ProtectedRoute from '../src/components/ProtectedRoute.jsx';
 
 // Layouts & Public
 import DashboardLayout from '../src/components/DashboardLayout.jsx';
@@ -20,6 +20,7 @@ import Members from '../src/pages/Members.jsx';
 import Funds from '../src/pages/Funds.jsx';
 import Expenses from '../src/pages/Expenses.jsx';
 import Events from '../src/pages/Events.jsx';
+import AllRequests from '../src/pages/AllRequests.jsx';
 import Requests from '../src/pages/Requests.jsx';
 import ParticipantRequests from '../src/pages/ParticipantRequests.jsx';
 import FundRequests from '../src/pages/FundRequests.jsx';
@@ -36,7 +37,7 @@ import StudentManagement from '../src/pages/StudentManagement.jsx';
 import CRDashboard from '../src/pages/CRDashboard.jsx';
 import JointGSDashboard from '../src/pages/JointGSDashboard.jsx';
 import AssistantFinanceDashboard from '../src/pages/AssistantFinanceDashboard.jsx';
-import CoMediaDashboard from '../src/pages/CoMediaDashboard.jsx'; 
+import CoMediaDashboard from '../src/pages/CoMediaDashboard.jsx';
 import EventManagerDashboard from '../src/pages/EventManagerDashboard.jsx';
 import FinanceSecretaryDashboard from '../src/pages/FinanceSecretaryDashboard.jsx';
 import MediaPRDashboard from '../src/pages/MediaPRDashboard.jsx';
@@ -45,11 +46,11 @@ import GeneralSecretary from '../src/pages/GeneralSecretaryDashboard.jsx';
 const App = () => (
   <ToastProvider>
     <SettingsProvider>
-      <AuthProvider> 
+      <AuthProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<StudentPortal />} />
-            <Route path="/home" element={<Home />} /> 
+            <Route path="/home" element={<Home />} />
             <Route path="/student" element={<StudentPortal />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
@@ -57,7 +58,7 @@ const App = () => (
             <Route path="/contribute" element={<Contribute />} />
 
             {/* Note: 'President' now grants ultimate access instead of 'Admin' */}
-            <Route element={<ProtectedRoute allowedRoles={['CR', 'President']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['Class Representative', 'President']} />}>
               <Route path="/cr-dashboard" element={<CRDashboard />} />
             </Route>
 
@@ -65,27 +66,23 @@ const App = () => (
               <Route path="/gs-dashboard" element={<GeneralSecretary />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['Joint GS', 'President']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['Joint General Secretary', 'President']} />}>
               <Route path="/joint-gs-dashboard" element={<JointGSDashboard />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['Finance Secretary', 'Finance Manager', 'President']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['Finance Head', 'President']} />}>
               <Route path="/finance-dashboard" element={<FinanceSecretaryDashboard />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['Assistant Finance', 'President']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['Assistant Finance Head', 'President']} />}>
               <Route path="/assistant-finance-dashboard" element={<AssistantFinanceDashboard />} />
-            </Route>
-
-            <Route element={<ProtectedRoute allowedRoles={['Event Manager', 'Event Coordinator', 'President']} />}>
-              <Route path="/event-manager-dashboard" element={<EventManagerDashboard />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['Media PR', 'President']} />}>
               <Route path="/media-pr-dashboard" element={<MediaPRDashboard />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['Co Media', 'President']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['Co-Media Manager', 'President']} />}>
               <Route path="/co-media-dashboard" element={<CoMediaDashboard />} />
             </Route>
 
@@ -97,6 +94,7 @@ const App = () => (
                 <Route path="funds" element={<Funds />} />
                 <Route path="expenses" element={<Expenses />} />
                 <Route path="events" element={<Events />} />
+                <Route path="all-requests" element={<AllRequests />} />
                 <Route path="requests" element={<Requests />} />
                 <Route path="participant-requests" element={<ParticipantRequests />} />
                 <Route path="fund-requests" element={<FundRequests />} />
@@ -107,10 +105,17 @@ const App = () => (
                 <Route path="settings" element={<Settings />} />
                 <Route path="studentmanagement" element={<StudentManagement />} />
               </Route>
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={[
+              'President', 'Class Representative', 'General Secretary', 'Joint GS',
+              'Finance Secretary', 'Finance Manager', 'Assistant Finance',
+              'Event Manager', 'Event Coordinator', 'Media PR', 'Co Media',
+              'Student', 'Member'
+            ]} />}>
               <Route path="/chat" element={<Chat />} />
               <Route path="/notifications" element={<Notifications />} />
             </Route>
-
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

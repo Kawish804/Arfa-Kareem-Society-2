@@ -100,3 +100,49 @@ exports.updateFundStatus = async (req, res) => {
         res.status(500).json({ error: "Failed to update fund status." });
     }
 };
+
+// ==========================================
+// 🔴 NEW: UPDATE STUDENT DETAILS (EDIT)
+// ==========================================
+exports.updateStudent = async (req, res) => {
+    try {
+        const studentId = req.params.id;
+        const updatedData = req.body;
+
+        // Note: Using returnDocument: 'after' instead of new: true to fix the terminal warning!
+        const updatedStudent = await Student.findByIdAndUpdate(
+            studentId, 
+            updatedData, 
+            { returnDocument: 'after', runValidators: true } 
+        );
+
+        if (!updatedStudent) {
+            return res.status(404).json({ message: "Student not found in database." });
+        }
+
+        res.status(200).json({ message: "Student updated successfully", student: updatedStudent });
+    } catch (error) {
+        console.error("🔴 UPDATE STUDENT ERROR:", error);
+        res.status(500).json({ message: "Server error while updating student." });
+    }
+};
+
+// ==========================================
+// 🔴 NEW: DELETE STUDENT
+// ==========================================
+exports.deleteStudent = async (req, res) => {
+    try {
+        const studentId = req.params.id;
+
+        const deletedStudent = await Student.findByIdAndDelete(studentId);
+
+        if (!deletedStudent) {
+            return res.status(404).json({ message: "Student not found in database." });
+        }
+
+        res.status(200).json({ message: "Student deleted successfully." });
+    } catch (error) {
+        console.error("🔴 DELETE STUDENT ERROR:", error);
+        res.status(500).json({ message: "Server error while deleting student." });
+    }
+};

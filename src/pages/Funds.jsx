@@ -24,7 +24,7 @@ const emptyForm = {
 
 const Funds = () => {
   const [fundList, setFundList] = useState([]);
-  const [expenseList, setExpenseList] = useState([]); // NEW: State to hold expenses
+  const [expenseList, setExpenseList] = useState([]); 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [previewReceipt, setPreviewReceipt] = useState(null);
@@ -40,7 +40,7 @@ const Funds = () => {
       .then(data => setFundList(data))
       .catch(err => console.error("Error fetching funds:", err));
 
-    // NEW: Fetch Expenses
+    // Fetch Expenses
     fetch('http://localhost:5000/api/expenses/records')
       .then(res => res.json())
       .then(data => setExpenseList(data))
@@ -49,7 +49,7 @@ const Funds = () => {
 
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  // Generic Time Filter Logic for both Funds and Expenses
+  // Generic Time Filter Logic
   const filterByTime = (list) => {
     if (timeFilter === 'All') return list;
 
@@ -81,16 +81,15 @@ const Funds = () => {
     });
   };
 
-  // Apply filters
   const timeFilteredFunds = filterByTime(fundList);
-  const timeFilteredExpenses = filterByTime(expenseList); // Filter expenses by the same time period
+  const timeFilteredExpenses = filterByTime(expenseList); 
   
   // Fund Calculations
   const totalExpected = timeFilteredFunds.reduce((s, f) => s + (Number(f.amount) || 0), 0);
   const totalCollected = timeFilteredFunds.filter(f => f.status === 'Paid').reduce((s, f) => s + (Number(f.amount) || 0), 0);
   const totalPending = timeFilteredFunds.filter(f => f.status === 'Unpaid').reduce((s, f) => s + (Number(f.amount) || 0), 0);
   
-  // NEW: Expense & Balance Calculations
+  // Expense & Balance Calculations
   const totalExpenses = timeFilteredExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const availableBalance = totalCollected - totalExpenses;
 
@@ -98,7 +97,6 @@ const Funds = () => {
   const unpaidCount = timeFilteredFunds.filter(f => f.status === 'Unpaid').length;
   const totalCount = timeFilteredFunds.length;
 
-  // Filter for the table display
   const displayFunds = timeFilteredFunds.filter(f => {
     if (statusFilter === 'All') return true;
     return f.status === statusFilter;
@@ -179,9 +177,7 @@ const Funds = () => {
         Click on a card below to filter the table by status.
       </p>
 
-      {/* --- UPDATED: Four-Card Summary Section (Includes Available Balance) --- */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-        
         <div onClick={() => setStatusFilter('All')} style={{ cursor: 'pointer', transition: '0.2s', opacity: statusFilter === 'All' ? 1 : 0.5 }}>
           <StatCard 
             title={`Total Expected (${timeFilter})`} 
@@ -209,7 +205,6 @@ const Funds = () => {
           />
         </div>
 
-        {/* NEW CARD: Available Balance (Not clickable as it doesn't filter the fund table) */}
         <div>
           <StatCard 
             title={`Available Balance (${timeFilter})`} 
@@ -218,7 +213,6 @@ const Funds = () => {
             description={`Collected minus Rs ${totalExpenses.toLocaleString()} in expenses`} 
           />
         </div>
-
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -265,17 +259,26 @@ const Funds = () => {
                   {f.date ? new Date(f.date).toLocaleDateString() : '—'}
                 </td>
                 <td><Badge variant="secondary">{f.uploadedBy || 'Unknown'}</Badge></td>
+                
+                {/* 🔴 NEW RECEIPT LOGIC */}
                 <td>
                   {f.receiptData ? (
-                    <button className={styles.viewReceiptBtn} onClick={() => setPreviewReceipt(f)}>
+                    // Physical Uploaded Image
+                    <button className={styles.viewReceiptBtn} onClick={() => setPreviewReceipt(f)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 500 }}>
                       <Eye size={14} /> View
                     </button>
                   ) : f.receiptName ? (
                     <span className={styles.receiptFile}><FileText size={14} /> {f.receiptName}</span>
+                  ) : f.status === 'Paid' ? (
+                    // 🔴 AUTO-GENERATED SYSTEM E-RECEIPT FOR CRs
+                    <button className={styles.viewReceiptBtn} onClick={() => setPreviewReceipt(f)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontWeight: 600 }}>
+                      <CheckCircle size={14} /> E-Receipt
+                    </button>
                   ) : (
                     <span className={styles.muted}>—</span>
                   )}
                 </td>
+
               </tr>
             )) : (
               <tr>
@@ -288,9 +291,11 @@ const Funds = () => {
         </table>
       </div>
 
+      {/* 🔴 NEW MODAL DISPLAY LOGIC */}
       {previewReceipt && (
         <div className={styles.receiptOverlay} onClick={() => setPreviewReceipt(null)}>
-          <div className={styles.receiptModal} onClick={e => e.stopPropagation()}>
+          <div className={styles.receiptModal} onClick={e => e.stopPropagation()} style={{ overflow: 'hidden' }}>
+            
             <div className={styles.receiptHeader}>
               <div>
                 <h3 className={styles.receiptTitle}>Payment Receipt</h3>
@@ -298,15 +303,50 @@ const Funds = () => {
               </div>
               <button className={styles.receiptClose} onClick={() => setPreviewReceipt(null)}><X size={18} /></button>
             </div>
-            <div className={styles.receiptBody}>
+            
+            <div className={styles.receiptBody} style={{ padding: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
               {previewReceipt.receiptData?.startsWith('data:image') ? (
-                <img src={previewReceipt.receiptData} alt="Receipt" className={styles.receiptImg} />
+                <img src={previewReceipt.receiptData} alt="Receipt" className={styles.receiptImg} style={{ width: '100%', borderRadius: '8px' }} />
               ) : previewReceipt.receiptData?.startsWith('data:application/pdf') ? (
-                <iframe src={previewReceipt.receiptData} className={styles.receiptPdf} title="Receipt PDF" />
+                <iframe src={previewReceipt.receiptData} className={styles.receiptPdf} title="Receipt PDF" style={{ width: '100%', height: '400px', border: 'none' }} />
               ) : (
-                <p className={styles.muted}>Unable to preview this file type</p>
+                /* 🔴 BEAUTIFUL SYSTEM-GENERATED E-RECEIPT */
+                <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '12px', border: '2px dashed #cbd5e1', textAlign: 'center' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#d1fae5', marginBottom: '15px' }}>
+                    <CheckCircle size={32} color="#10b981" />
+                  </div>
+                  <h2 style={{ margin: '0 0 15px 0', color: '#0f172a', fontSize: '1.5rem' }}>Official E-Receipt</h2>
+                  
+                  <div style={{ textAlign: 'left', backgroundColor: 'white', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ color: '#64748b' }}>Student Name</span>
+                      <span style={{ fontWeight: 'bold', color: '#0f172a' }}>{previewReceipt.studentName}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ color: '#64748b' }}>Department</span>
+                      <span style={{ fontWeight: '500', color: '#0f172a' }}>{previewReceipt.department}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ color: '#64748b' }}>Amount Paid</span>
+                      <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '1.1rem' }}>Rs {previewReceipt.amount?.toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ color: '#64748b' }}>Collected By</span>
+                      <span style={{ fontWeight: '500', color: '#0f172a' }}>{previewReceipt.uploadedBy}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#64748b' }}>Date</span>
+                      <span style={{ fontWeight: '500', color: '#0f172a' }}>{new Date(previewReceipt.date).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
+                    This is a system-generated electronic receipt.<br/>No physical signature is required.
+                  </p>
+                </div>
               )}
             </div>
+
           </div>
         </div>
       )}

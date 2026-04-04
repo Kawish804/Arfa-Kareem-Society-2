@@ -236,7 +236,7 @@ const Signup = () => {
           <div className={styles.row}>
             <div className={styles.field}>
               <label className={styles.label}>Full Name *</label>
-              <Input placeholder="Muhammad Ahmed" value={form.fullName} onChange={e => set('fullName', e.target.value)} />
+              <Input placeholder="Faizan Sarwar" value={form.fullName} onChange={e => set('fullName', e.target.value)} />
               {errors.fullName && <span className={styles.error}>{errors.fullName}</span>}
             </div>
             <div className={styles.field}>
