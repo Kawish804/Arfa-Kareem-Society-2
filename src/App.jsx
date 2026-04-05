@@ -38,7 +38,7 @@ import CRDashboard from '../src/pages/CRDashboard.jsx';
 import JointGSDashboard from '../src/pages/JointGSDashboard.jsx';
 import AssistantFinanceDashboard from '../src/pages/AssistantFinanceDashboard.jsx';
 import CoMediaDashboard from '../src/pages/CoMediaDashboard.jsx';
-import EventManagerDashboard from '../src/pages/EventManagerDashboard.jsx';
+import EventManagerDashboard from '../src/pages/EventManagerDashboard.jsx'; // Kept import if needed later
 import FinanceSecretaryDashboard from '../src/pages/FinanceSecretaryDashboard.jsx';
 import MediaPRDashboard from '../src/pages/MediaPRDashboard.jsx';
 import GeneralSecretary from '../src/pages/GeneralSecretaryDashboard.jsx';
@@ -49,15 +49,18 @@ const App = () => (
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<StudentPortal />} />
+            <Route path="/" element={<Home />} />
             <Route path="/home" element={<Home />} />
-            <Route path="/student" element={<StudentPortal />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/member-signup" element={<MemberSignup />} />
             <Route path="/contribute" element={<Contribute />} />
 
-            {/* Note: 'President' now grants ultimate access instead of 'Admin' */}
+            {/* ========================================== */}
+            {/* STRICT ROLE DASHBOARDS                     */}
+            {/* ========================================== */}
+
+
             <Route element={<ProtectedRoute allowedRoles={['Class Representative', 'President']} />}>
               <Route path="/cr-dashboard" element={<CRDashboard />} />
             </Route>
@@ -78,15 +81,19 @@ const App = () => (
               <Route path="/assistant-finance-dashboard" element={<AssistantFinanceDashboard />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['Media PR', 'President']} />}>
+            {/* 🔴 FIXED: Was previously 'Media PR' */}
+            <Route element={<ProtectedRoute allowedRoles={['Media Manager', 'President']} />}>
               <Route path="/media-pr-dashboard" element={<MediaPRDashboard />} />
             </Route>
 
+            {/* 🔴 FIXED: Was previously 'Co Media' */}
             <Route element={<ProtectedRoute allowedRoles={['Co-Media Manager', 'President']} />}>
               <Route path="/co-media-dashboard" element={<CoMediaDashboard />} />
             </Route>
 
-            {/* PRESIDENT DASHBOARD (The Hub) */}
+            {/* ========================================== */}
+            {/* PRESIDENT DASHBOARD (The Hub)              */}
+            {/* ========================================== */}
             <Route element={<ProtectedRoute allowedRoles={['President']} />}>
               <Route path="/dashboard" element={<DashboardLayout />}>
                 <Route index element={<Dashboard />} />
@@ -107,15 +114,21 @@ const App = () => (
               </Route>
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={[
-              'President', 'Class Representative', 'General Secretary', 'Joint GS',
-              'Finance Secretary', 'Finance Manager', 'Assistant Finance',
-              'Event Manager', 'Event Coordinator', 'Media PR', 'Co Media',
-              'Student', 'Member'
+            {/* ========================================== */}
+            {/* SHARED ROUTES (Chat & Notifications)       */}
+            {/* ========================================== */}
+            {/* 🔴 FIXED: Stripped all old aliases to enforce strict 8 roles (plus basic Student/Member) */}
+           <Route element={<ProtectedRoute allowedRoles={[
+              'President', 'General Secretary', 'Finance Head', 'Assistant Finance Head',
+              'Joint General Secretary', 'Media Manager', 'Co-Media Manager', 'Class Representative',
+              'Student'
             ]} />}>
+              <Route path="/student" element={<StudentPortal />} /> F
               <Route path="/chat" element={<Chat />} />
               <Route path="/notifications" element={<Notifications />} />
             </Route>
+
+            {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

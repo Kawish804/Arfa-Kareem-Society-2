@@ -6,16 +6,22 @@ const userSchema = new mongoose.Schema({
     phone: { type: String, required: true },
     password: { type: String, required: true },
     role: { 
-        type: String, 
+        type: [String], 
         required: true,
-        // The definitive list of roles
+        // 🔴 The definitive, strict list of roles
         enum: [
-            'President', 'General Secretary', 'Finance Head', 'Assistant Finance Head',
-            'Joint General Secretary', 'Media Manager', 'Co-Media Manager', 'Class Representative'
+            'President', 
+            'General Secretary', 
+            'Finance Head', 
+            'Assistant Finance Head',
+            'Joint General Secretary', 
+            'Media Manager', 
+            'Co-Media Manager', 
+            'Class Representative',
+            'Student'
         ]
     },
     
-    // Academic Details (For Students/Members/CRs)
     department: { type: String },
     semester: { type: String },
     rollNo: { type: String },

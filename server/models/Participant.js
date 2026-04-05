@@ -2,13 +2,14 @@ const mongoose = require('mongoose');
 
 const participantSchema = new mongoose.Schema({
     studentName: { type: String, required: true },
+    email: { type: String, required: true }, // 🔴 ADDED: Needed to send them a notification
     rollNo: { type: String, default: '' },
     department: { type: String, default: '' },
     contact: { type: String, default: '' },
     eventId: { type: String, required: true },
     eventTitle: { type: String, required: true },
     role: { type: String, required: true },
-    status: { type: String, default: 'Pending' }, 
+    status: { type: String, default: 'Pending' },
     date: { type: String, required: true },
     teamwork: { type: Number, default: 0 },
     communication: { type: Number, default: 0 },

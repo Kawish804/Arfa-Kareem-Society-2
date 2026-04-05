@@ -31,7 +31,7 @@ exports.getAvailableRoles = async (req, res) => {
         const availableSingletonRoles = singletonRoles.filter(role => !takenRoles.includes(role));
 
         // These roles can have INFINITE users (Moved Class Representative here!)
-        const multipleRoles = ['Class Representative'];
+        const multipleRoles = ['Class Representative', 'Student'];
 
         // Combine and send to the frontend
         res.status(200).json([...availableSingletonRoles, ...multipleRoles]);
@@ -52,7 +52,10 @@ exports.signup = async (req, res) => {
             return res.status(400).json({ message: "User already exists with this email." });
         }
 
-        if (role === 'Class Representative') {
+        // 🔴 FORCE INTO ARRAY
+        const newRoles = Array.isArray(role) ? role : [role];
+
+        if (newRoles.includes('Class Representative')) {
             const existingCR = await User.findOne({
                 role: 'Class Representative',
                 department: department,
@@ -73,7 +76,8 @@ exports.signup = async (req, res) => {
         const generatedMembershipId = Math.floor(100000 + Math.random() * 900000).toString();
 
         const newUser = new User({
-            fullName, email, phone, password: hashedPassword, role,
+            fullName, email, phone, password: hashedPassword, 
+            role: newRoles, // 🔴 Save array
             department, semester, rollNo, timing, batch, reason,
             membershipId: generatedMembershipId, isActive: false, isApproved: false
         });
@@ -110,12 +114,24 @@ exports.login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "Invalid email or password." });
 
-        if (!user.isActive && user.role !== 'President') {
+        // 🔴 THE FIX: Safely parse roles into an array
+        const userRoles = Array.isArray(user.role) ? user.role : [user.role || 'Member'];
+        const isPresident = userRoles.includes('President') || userRoles.includes('Admin');
+
+        // Check if unverified, BUT allow Presidents/Admins to bypass
+        if (!user.isActive && !isPresident) {
             return res.status(403).json({ message: "Please verify your email or wait for President activation." });
         }
 
         const token = jwt.sign(
-            { id: user._id, role: user.role, department: user.department, semester: user.semester, timing: user.timing, batch: user.batch },
+            { 
+              id: user._id, 
+              role: userRoles, // 🔴 Include array
+              department: user.department, 
+              semester: user.semester, 
+              timing: user.timing, 
+              batch: user.batch 
+            },
             process.env.JWT_SECRET || 'secret',
             { expiresIn: '1d' }
         );
@@ -123,7 +139,7 @@ exports.login = async (req, res) => {
         res.status(200).json({
             message: "Login successful",
             token,
-            user: { id: user._id, fullName: user.fullName, email: user.email, role: user.role }
+            user: { id: user._id, fullName: user.fullName, email: user.email, role: userRoles }
         });
     } catch (error) {
         res.status(500).json({ error: "Server error during login" });
@@ -142,14 +158,18 @@ exports.transferRole = async (req, res) => {
 
         if (!targetUser) return res.status(404).json({ message: "User with that email not found." });
 
+        let currentRoles = Array.isArray(currentUser.role) ? currentUser.role : [currentUser.role];
+        let targetRoles = Array.isArray(targetUser.role) ? targetUser.role : [targetUser.role];
+
         // Ensure target user is just a student or member before giving them a top role
-        if (targetUser.role !== 'Student' && targetUser.role !== 'Member') {
+        if (!targetRoles.includes('Student') && !targetRoles.includes('Member')) {
             return res.status(400).json({ message: "Target user already holds a leadership position." });
         }
 
-        const roleToTransfer = currentUser.role;
-        targetUser.role = roleToTransfer;
-        currentUser.role = 'Student';
+        // Just a simple swap for now based on your original logic, but safely handling arrays
+        const roleToTransfer = currentRoles[0] || 'Member';
+        targetUser.role = [roleToTransfer]; // Reset target to new role
+        currentUser.role = ['Student'];     // Reset current back to student
 
         await targetUser.save();
         await currentUser.save();

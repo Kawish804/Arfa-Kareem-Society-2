@@ -7,6 +7,8 @@ exports.addExpense = async (req, res) => {
         await newExpense.save();
         res.status(201).json(newExpense);
     } catch (error) {
+        // 🔴 THIS WILL NOW PRINT THE EXACT ERROR IN YOUR TERMINAL!
+        console.error("🔴 ERROR SAVING EXPENSE:", error); 
         res.status(500).json({ error: "Failed to add expense." });
     }
 };

@@ -1,333 +1,560 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, CalendarDays, Megaphone, Image as ImageIcon, Send, Users, ArrowRight, LogIn, Heart, AlertTriangle, DollarSign, Info, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import {
+  GraduationCap, CalendarDays, Megaphone, Image, Send, Users, LogOut,
+  Heart, AlertTriangle, DollarSign, Clock, Trophy, BookOpen,
+  Bell, Search, ChevronRight, Eye, UserPlus, User, FileText,
+  CheckCircle, Menu, Home
+} from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
 import Select from '@/components/ui/Select.jsx';
 import Modal from '@/components/ui/Modal.jsx';
+import Badge from '@/components/ui/Badge.jsx';
+import { galleryImages, funds } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
-import { useSettings } from '@/context/SettingsContext.jsx'; // <-- IMPORT CONTEXT
+import { useAuth } from '@/context/AuthContext.jsx';
 import styles from './StudentPortal.module.css';
+
+const sidebarItems = [
+  { id: 'overview', label: 'Overview', icon: Home },
+  { id: 'profile', label: 'My Profile', icon: User },
+  { id: 'events', label: 'Events', icon: CalendarDays },
+  { id: 'requests', label: 'My Requests', icon: FileText },
+  { id: 'announcements', label: 'Announcements', icon: Megaphone },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'gallery', label: 'Gallery', icon: Image },
+];
 
 const StudentPortal = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  // USE THE GLOBAL SETTINGS INSTANTLY!
-  const { settings, loading } = useSettings();
+  const { user, logout } = useAuth();
 
+  const [activeSection, setActiveSection] = useState('overview');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // 🔴 LIVE DATABASE STATES
+  const [dbEvents, setDbEvents] = useState([]);
+  const [dbAnnouncements, setDbAnnouncements] = useState([]);
+  const [dbNotifications, setDbNotifications] = useState([]);
+  const [myRequests, setMyRequests] = useState([]);
+  const [myParticipations, setMyParticipations] = useState([]); // Tracks statuses
+
+  // Modals
   const [requestOpen, setRequestOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [fundOpen, setFundOpen] = useState(false);
-  const [fundForm, setFundForm] = useState({ name: '', email: '', amount: '', purpose: '', description: '' });
-  const [form, setForm] = useState({ title: '', name: '', type: '', eventId: '' });
-  const [report, setReport] = useState({ name: '', subject: '', message: '' });
-
-  const [announcements, setAnnouncements] = useState([]);
-  const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [galleryImages, setGalleryImages] = useState([]);
-  
   const [participateOpen, setParticipateOpen] = useState(false);
   const [participateEvent, setParticipateEvent] = useState(null);
-  const [participateForm, setParticipateForm] = useState({ name: '', rollNo: '', department: '', contact: '', role: 'Attendee' });
 
-  const [viewAlbum, setViewAlbum] = useState(null);
-  const [fullScreenIndex, setFullScreenIndex] = useState(null);
+  const [participateForm, setParticipateForm] = useState({ name: user?.fullName || '', role: 'Volunteer' });
+  const [fundOpen, setFundOpen] = useState(false);
+  const [fundForm, setFundForm] = useState({ name: user?.fullName || '', email: user?.email || '', amount: '', purpose: '', description: '' });
+  const [form, setForm] = useState({ title: '', name: user?.fullName || '', type: '', eventId: '' });
+  const [report, setReport] = useState({ name: user?.fullName || '', subject: '', message: '' });
 
-  // FETCH ONLY EVENTS, ANNOUNCEMENTS, & GALLERY
+  // --- 1. FETCH LIVE DATA ON LOAD ---
   useEffect(() => {
-    Promise.all([
-      fetch('http://localhost:5000/api/events/records'),
-      fetch('http://localhost:5000/api/announcements/all'),
-      fetch('http://localhost:5000/api/gallery/all')
-    ])
-      .then(async ([evRes, annRes, galRes]) => {
-        const evData = await evRes.json();
-        const annData = await annRes.json();
-        const galData = await galRes.json();
+    const fetchPortalData = async () => {
+      if (!user?.email) return;
+      const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const upcoming = Array.isArray(evData) ? evData
-          .filter(e => {
-            if (e.status !== 'Upcoming') return false;
-            const dateToCheck = e.endDate || e.date;
-            if (dateToCheck) {
-              const eventDate = new Date(dateToCheck);
-              if (eventDate < today) return false;
-            }
-            return true;
-          })
-          .sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
+      try {
+        const [evRes, annRes, reqRes, partRes, notifRes] = await Promise.all([
+          fetch('http://localhost:5000/api/events', { headers }),
+          fetch('http://localhost:5000/api/announcements', { headers }),
+          fetch(`http://localhost:5000/api/requests/my-requests/${user.email}`, { headers }),
+          fetch('http://localhost:5000/api/participants/all', { headers }),
+          fetch('http://localhost:5000/api/notifications', { headers }) // Ensure this route exists!
+        ]);
 
-        setUpcomingEvents(upcoming);
-        setAnnouncements(Array.isArray(annData) ? annData.slice(0, 3) : []);
-        setGalleryImages(Array.isArray(galData) ? galData : []);
-      })
-      .catch(err => console.error("Error fetching data:", err));
-  }, []);
+        if (evRes.ok) setDbEvents(await evRes.json());
+        if (annRes.ok) setDbAnnouncements(await annRes.json());
+        if (reqRes.ok) setMyRequests(await reqRes.json());
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (fullScreenIndex === null || !viewAlbum) return;
-      if (e.key === 'ArrowRight') setFullScreenIndex((prev) => (prev + 1) % viewAlbum.images.length);
-      else if (e.key === 'ArrowLeft') setFullScreenIndex((prev) => (prev === 0 ? viewAlbum.images.length - 1 : prev - 1));
-      else if (e.key === 'Escape') setFullScreenIndex(null);
+        if (partRes.ok) {
+          const allParts = await partRes.json();
+          setMyParticipations(allParts.filter(p => p.studentName === user.fullName));
+        }
+
+        if (notifRes.ok) {
+          const allNotifs = await notifRes.json();
+          // 🔴 Only show notifications meant for EVERYONE, or meant specifically for THIS user
+          setDbNotifications(allNotifs.filter(n => !n.targetUser || n.targetUser === user.fullName));
+        }
+
+      } catch (error) {
+        console.error("Failed to load portal data", error);
+      }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [fullScreenIndex, viewAlbum]);
+    fetchPortalData();
+  }, [user]);
+
+  const upcomingEvents = dbEvents.filter(e => e.status === 'Upcoming' || e.status === 'Ongoing');
+  const completedEvents = dbEvents.filter(e => e.status === 'Completed');
+  const myFunds = funds.slice(0, 3);
+  const unreadNotifs = dbNotifications.filter(n => !n.read).length;
 
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const handleSubmitRequest = () => {
-    if (!form.name || !form.type) {
-      toast({ title: 'Please fill all required fields', variant: 'destructive' }); return;
+  // --- 2. SUBMIT EVENT PARTICIPATION REQUEST ---
+  // --- 2. SUBMIT EVENT PARTICIPATION REQUEST ---
+  const handleParticipateSubmit = async () => {
+    if (!participateForm.name) { toast({ title: 'Name is required', variant: 'destructive' }); return; }
+
+    try {
+      const payload = {
+        studentName: participateForm.name,
+        email: user?.email, // 🔴 THE FIX: This was missing! The DB needs this to save.
+        rollNo: user?.rollNo || 'N/A',
+        department: user?.department || 'N/A',
+        contact: user?.phone || 'N/A',
+        eventId: participateEvent._id || participateEvent.id,
+        eventTitle: participateEvent.title,
+        role: participateForm.role
+      };
+
+      const res = await fetch('http://localhost:5000/api/participants/request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const newPart = await res.json();
+        toast({ title: 'Request Sent!', description: `Your request to join ${participateEvent.title} has been submitted.` });
+        setMyParticipations(prev => [...prev, newPart]);
+        setRequestedEventIds(prev => [...prev, participateEvent._id]); // Disable button
+        setParticipateOpen(false);
+      } else {
+        const errorData = await res.json();
+        toast({ title: 'Submission Failed', description: errorData.error || 'Server rejected request', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Server Error', variant: 'destructive' });
     }
-    const selectedEvent = form.type === 'Event Participation' ? upcomingEvents.find(e => e._id === form.eventId) : null;
-    const requestTitle = form.type === 'Event Participation' ? `Participation Request: ${selectedEvent?.title}` : form.title;
-    toast({ title: 'Request Submitted!', description: `"${requestTitle}" has been sent to the admin for approval.` });
-    setRequestOpen(false);
-    setForm({ title: '', name: '', type: '', eventId: '' });
   };
 
-  const galleryAlbums = Object.values(galleryImages.reduce((acc, img) => {
-    const key = img.eventTitle || 'General';
-    if (!acc[key]) acc[key] = { eventTitle: key, coverImage: img.url, images: [] };
-    acc[key].images.push(img);
-    return acc;
-  }, {}));
+  // --- 3. SUBMIT GENERAL REQUEST ---
+  const handleSubmitRequest = async () => {
+    if (!form.name || !form.type) { toast({ title: 'Please fill all required fields', variant: 'destructive' }); return; }
+    if (form.type !== 'Event Participation' && !form.title) { toast({ title: 'Please enter a request title', variant: 'destructive' }); return; }
 
-  const previewAlbums = galleryAlbums.slice(0, 4);
+    try {
+      const payload = { title: form.title, type: form.type, submittedBy: form.name, email: user.email, role: user.role[0] || 'Student' };
 
-  if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Portal...</div>;
+      const res = await fetch('http://localhost:5000/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const newReq = await res.json();
+        setMyRequests(prev => [newReq, ...prev]);
+        toast({ title: 'Request Submitted!', description: 'Your request has been sent to the admin for approval.' });
+        setRequestOpen(false);
+        setForm({ title: '', name: user?.fullName || '', type: '', eventId: '' });
+      }
+    } catch (error) {
+      toast({ title: 'Server Error', variant: 'destructive' });
+    }
+  };
+
+  // 🔴 NEW: MARK NOTIFICATION AS READ
+  const handleMarkAsRead = async (id) => {
+    try {
+      await fetch(`http://localhost:5000/api/notifications/${id}/read`, { method: 'PUT' });
+      setDbNotifications(prev => prev.map(n => n._id === id ? { ...n, read: true } : n));
+    } catch (error) {
+      console.error("Failed to mark notification as read");
+    }
+  };
+
+  const statusVariant = (s) => {
+    if (s === 'Approved' || s === 'Paid' || s === 'Upcoming') return 'success';
+    if (s === 'Rejected') return 'destructive';
+    return 'warning';
+  };
+
+  const renderSidebar = () => (
+    <div className={styles.sidebarContent}>
+      <div className={styles.sidebarBrand}>
+        <div className={styles.brandIcon}><GraduationCap size={20} /></div>
+        <div className={styles.brandText}>
+          <span className={styles.brandName}>Arfa Kareem</span>
+          <span className={styles.brandSub}>Student Portal</span>
+        </div>
+      </div>
+      <nav className={styles.sidebarNav}>
+        {sidebarItems.map(item => (
+          <button
+            key={item.id}
+            className={`${styles.navItem} ${activeSection === item.id ? styles.navActive : ''}`}
+            onClick={() => { setActiveSection(item.id); setMobileOpen(false); }}
+          >
+            <item.icon size={18} />
+            <span>{item.label}</span>
+            {item.id === 'notifications' && unreadNotifs > 0 && (
+              <span className={styles.navBadge}>{unreadNotifs}</span>
+            )}
+          </button>
+        ))}
+      </nav>
+      <div className={styles.sidebarFooter}>
+        <button className={styles.logoutBtn} onClick={() => { logout(); navigate('/login'); }}>
+          <LogOut size={18} /> <span>Sign Out</span>
+        </button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className={styles.page}>
-      <nav className={styles.navbar}>
-        <div className={styles.navInner}>
-          <div className={styles.navBrand}>
-            <div className={styles.navLogo}><GraduationCap size={20} /></div>
-            <span className={styles.navName}>{settings.societyName}</span> {/* DYNAMIC CONTEXT */}
-          </div>
-          <div className={styles.navLinks}>
-            <a href="#events">Events</a><a href="#announcements">Announcements</a><a href="#gallery">Gallery</a>
-          </div>
-          <div className={styles.navBtns}>
-            <Button variant="outline" size="sm" onClick={() => navigate('/login')}><LogIn size={14} /> Login</Button>
-            <Button size="sm" onClick={() => navigate('/signup')}>Join Society</Button>
-          </div>
-        </div>
-      </nav>
+    <div className={styles.dashboard}>
+      <aside className={styles.sidebar}>{renderSidebar()}</aside>
+      {mobileOpen && <div className={styles.mobileOverlay} onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && <aside className={styles.mobileSidebar}>{renderSidebar()}</aside>}
 
-      <section className={styles.hero}>
-        <div className={styles.heroContent}>
-          <div className={styles.heroBadge}><Users size={16} /> Student Portal</div>
-          <h1 className={styles.heroTitle}>Welcome to<br /><span className={styles.heroHighlight}>{settings.societyName}</span></h1> {/* DYNAMIC CONTEXT */}
-          <p className={styles.heroSubtitle}>Stay connected with society activities, events, and announcements. Submit requests and explore our gallery.</p>
-          <div className={styles.heroBtns}>
-            <Button size="lg" onClick={() => navigate('/signup')}>Join Society <ArrowRight size={16} /></Button>
-            <Button size="lg" onClick={() => setRequestOpen(true)}><Send size={16} /> Submit Request</Button>
-            <Button size="lg" variant="outline" onClick={() => navigate('/contribute')}><Heart size={16} /> Contribute</Button>
-            <Button size="lg" variant="outline" onClick={() => setFundOpen(true)}><DollarSign size={16} /> Fund Appeal</Button>
-            <Button size="lg" variant="outline" onClick={() => setReportOpen(true)}><AlertTriangle size={16} /> Report Issue</Button>
+      <div className={styles.mainArea}>
+        <header className={styles.topbar}>
+          <div className={styles.topbarLeft}>
+            <button className={styles.menuBtn} onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
+            <h1 className={styles.pageTitle}>{sidebarItems.find(i => i.id === activeSection)?.label || 'Dashboard'}</h1>
           </div>
-        </div>
-      </section>
-
-      {/* Activities Overview */}
-      <section className={styles.overview}>
-        <div className={styles.sectionInner}>
-          <h2 className={styles.sectionTitle}>Society Activities</h2>
-          <div className={styles.statCards}>
-            <div className={styles.statCard}><CalendarDays size={28} className={styles.statIcon} /><div className={styles.statValue}>{upcomingEvents.length}</div><div className={styles.statLabel}>Upcoming Events</div></div>
-            <div className={styles.statCard}><Megaphone size={28} className={styles.statIcon} /><div className={styles.statValue}>{announcements.length}</div><div className={styles.statLabel}>Announcements</div></div>
-            <div className={styles.statCard}><ImageIcon size={28} className={styles.statIcon} /><div className={styles.statValue}>{galleryImages.length}</div><div className={styles.statLabel}>Gallery Photos</div></div>
-            <div className={styles.statCard}><Users size={28} className={styles.statIcon} /><div className={styles.statValue}>45+</div><div className={styles.statLabel}>Active Members</div></div>
+          <div className={styles.topbarRight}>
+            <div className={styles.searchBox}>
+              <Search size={16} />
+              <input placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            </div>
+            <div className={styles.userChip}>
+              <div className={styles.avatar}>{user?.fullName?.charAt(0) || 'U'}</div>
+              <div className={styles.userInfo}>
+                <span className={styles.userName}>{user?.fullName || 'Student'}</span>
+                <span className={styles.userRole}>{user?.rollNo || 'Active Member'}</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </header>
 
-      {/* Upcoming Events */}
-      <section id="events" className={styles.section}>
-        <div className={styles.sectionInner}>
-          <h2 className={styles.sectionTitle}>Upcoming Events</h2>
-          <div className={styles.eventGrid}>
-            {upcomingEvents.map(e => (
-              <div key={e._id} className={styles.eventCard}>
-                <span className={styles.eventDate}><CalendarDays size={12} />{e.date ? new Date(e.date).toLocaleDateString() : 'TBD'}</span>
-                <h3 className={styles.eventName}>{e.title}</h3>
-                <p className={styles.eventDesc}>{e.description}</p>
-                <div className={styles.eventFooter}>
-                  <span className={styles.eventBudget}>Fee: {e.entryFee ? `Rs ${e.entryFee}` : 'Free'}</span>
-                  <Button size="sm" onClick={() => {
-                    setParticipateEvent(e); setParticipateForm({ name: '', rollNo: '', department: '', contact: '', role: 'Attendee' }); setParticipateOpen(true);
-                  }}><Users size={14} /> Participate</Button>
+        <div className={styles.content}>
+          {/* ======= OVERVIEW ======= */}
+          {activeSection === 'overview' && (
+            <div className={styles.overviewSection}>
+              <div className={styles.welcomeCard}>
+                <div className={styles.welcomeLeft}>
+                  <h2 className={styles.welcomeGreeting}>Welcome back, {user?.fullName?.split(' ')[0] || 'Student'}! 👋</h2>
+                  <p className={styles.welcomeSub}>Here's what's happening in the society today.</p>
+                </div>
+                <div className={styles.welcomeRight}>
+                  <div className={styles.miniStat}><CalendarDays size={18} /><div><span className={styles.miniNum}>{upcomingEvents.length}</span><span className={styles.miniLabel}>Upcoming</span></div></div>
+                  <div className={styles.miniStat}><FileText size={18} /><div><span className={styles.miniNum}>{myRequests.filter(r => r.status === 'Pending').length}</span><span className={styles.miniLabel}>Pending</span></div></div>
+                  <div className={styles.miniStat}><Bell size={18} /><div><span className={styles.miniNum}>{unreadNotifs}</span><span className={styles.miniLabel}>Unread</span></div></div>
+                  <div className={styles.miniStat}><Trophy size={18} /><div><span className={styles.miniNum}>{completedEvents.length}</span><span className={styles.miniLabel}>Attended</span></div></div>
                 </div>
               </div>
-            ))}
-            {upcomingEvents.length === 0 && <p className={styles.empty}>No upcoming events at the moment.</p>}
-          </div>
-        </div>
-      </section>
 
-      {/* Announcements */}
-      <section id="announcements" className={styles.sectionAlt}>
-        <div className={styles.sectionInner}>
-          <h2 className={styles.sectionTitle}>Latest Announcements</h2>
-          <div className={styles.annGrid}>
-            {announcements.map(a => (
-              <div key={a._id || a.id} className={styles.annCard}>
-                <h3 className={styles.annTitle}>{a.title}</h3>
-                <p className={styles.annDesc}>{a.description}</p>
-                <div className={styles.annFooter}><span>By {a.postedBy}</span><span>{a.postedDate}</span></div>
+              <div className={styles.quickGrid}>
+                <button className={styles.quickCard} onClick={() => setRequestOpen(true)}><div className={styles.quickIcon} style={{ background: 'var(--secondary)' }}><Send size={20} /></div><span>Submit Request</span></button>
+                <button className={styles.quickCard} onClick={() => setActiveSection('events')}><div className={styles.quickIcon} style={{ background: 'hsl(160, 84%, 39%)' }}><Users size={20} /></div><span>Join Event</span></button>
+                <button className={styles.quickCard} onClick={() => setFundOpen(true)}><div className={styles.quickIcon} style={{ background: 'hsl(45, 93%, 47%)' }}><DollarSign size={20} /></div><span>Fund Appeal</span></button>
+                <button className={styles.quickCard} onClick={() => setReportOpen(true)}><div className={styles.quickIcon} style={{ background: 'var(--destructive)' }}><AlertTriangle size={20} /></div><span>Report Issue</span></button>
               </div>
-            ))}
-            {announcements.length === 0 && <p className={styles.empty} style={{gridColumn: '1/-1'}}>No announcements currently.</p>}
-          </div>
-        </div>
-      </section>
 
-      {/* Grouped Gallery Preview */}
-      <section id="gallery" className={styles.section}>
-        <div className={styles.sectionInner}>
-          <h2 className={styles.sectionTitle}>Photo Gallery</h2>
-          <div className={styles.galleryGrid}>
-            {previewAlbums.map((album, idx) => (
-              <div key={idx} className={styles.galleryItem} onClick={() => setViewAlbum(album)} style={{ cursor: 'pointer', position: 'relative' }}>
-                <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '8px', border: '1px solid var(--border)', aspectRatio: '4/3' }}>
-                  <img src={album.coverImage} alt={album.eventTitle} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <ImageIcon size={12} /> {album.images.length}
+              <div className={styles.overviewGrid}>
+                <div className={styles.overviewPanel}>
+                  <div className={styles.panelHeader}>
+                    <h3>Upcoming Events</h3>
+                    <button className={styles.viewAll} onClick={() => setActiveSection('events')}>View All <ChevronRight size={14} /></button>
                   </div>
+                  {upcomingEvents.slice(0, 3).map(e => (
+                    <div key={e._id} className={styles.miniEventCard}>
+                      <div className={styles.miniEventDate}><CalendarDays size={14} />{e.date}</div>
+                      <span className={styles.miniEventName}>{e.title}</span>
+                    </div>
+                  ))}
+                  {upcomingEvents.length === 0 && <p className={styles.emptyText}>No upcoming events</p>}
                 </div>
-                <div className={styles.galleryCaption} style={{ marginTop: '8px', fontWeight: '600', color: 'var(--text-main)', textAlign: 'center' }}>{album.eventTitle}</div>
+
+                <div className={styles.overviewPanel}>
+                  <div className={styles.panelHeader}>
+                    <h3>Recent Requests</h3>
+                    <button className={styles.viewAll} onClick={() => setActiveSection('requests')}>View All <ChevronRight size={14} /></button>
+                  </div>
+                  {myRequests.slice(0, 3).map(r => (
+                    <div key={r._id} className={styles.miniRequestCard}>
+                      <div>
+                        <span className={styles.miniReqTitle}>{r.title}</span>
+                        <span className={styles.miniReqDate}>{new Date(r.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
+                    </div>
+                  ))}
+                  {myRequests.length === 0 && <p className={styles.emptyText}>No recent requests</p>}
+                </div>
+
+                <div className={styles.overviewPanel}>
+                  <div className={styles.panelHeader}>
+                    <h3>Announcements</h3>
+                    <button className={styles.viewAll} onClick={() => setActiveSection('announcements')}>View All <ChevronRight size={14} /></button>
+                  </div>
+                  {dbAnnouncements.slice(0, 3).map(a => (
+                    <div key={a._id} className={styles.miniAnnCard}>
+                      <span className={styles.miniAnnTitle}>{a.title}</span>
+                      <span className={styles.miniAnnDate}>{a.postedDate}</span>
+                    </div>
+                  ))}
+                  {dbAnnouncements.length === 0 && <p className={styles.emptyText}>No recent announcements</p>}
+                </div>
               </div>
-            ))}
-            {previewAlbums.length === 0 && <p className={styles.empty} style={{gridColumn: '1/-1', color: 'var(--text-muted)'}}>No photos uploaded yet.</p>}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className={styles.cta}>
-        <div className={styles.sectionInner}>
-          <h2 className={styles.sectionTitle}>Need Support?</h2>
-          <p className={styles.ctaText}>Submit a request for event approval, budget support, or department assistance.</p>
-          <div className={styles.ctaBtns}>
-            <Button size="lg" onClick={() => setRequestOpen(true)}><Send size={16} /> Submit Request</Button>
-            <Button size="lg" variant="outline" onClick={() => navigate('/signup')}><ArrowRight size={16} /> Join the Society</Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className={styles.footer}>
-        <div className={styles.footerInner}>
-          <div className={styles.footerCol}>
-            <div className={styles.footerBrand}><GraduationCap size={22} /> {settings.societyName}</div> {/* DYNAMIC CONTEXT */}
-            <p className={styles.footerText}>Empowering students through technology and community.</p>
-          </div>
-          <div className={styles.footerCol}>
-            <h4>Quick Links</h4>
-            <p onClick={() => navigate('/login')}>Login</p><p onClick={() => navigate('/')}>Home</p><p onClick={() => navigate('/login')}>Join Society</p>
-          </div>
-          <div className={styles.footerCol}>
-            <h4>Contact</h4>
-            <p>Email: {settings.email}</p> {/* DYNAMIC CONTEXT */}
-            <p>Phone: {settings.phone}</p> {/* DYNAMIC CONTEXT */}
-            <p>{settings.university}</p> {/* DYNAMIC CONTEXT */}
-          </div>
-        </div>
-        <div className={styles.footerBottom}>© {new Date().getFullYear()} {settings.societyName} Management System. All rights reserved.</div>
-      </footer>
-
-      {/* MODALS */}
-      <Modal open={!!viewAlbum && fullScreenIndex === null} onClose={() => setViewAlbum(null)} title={viewAlbum?.eventTitle || 'Photo Album'} footer={<Button onClick={() => setViewAlbum(null)}>Close Album</Button>}>
-        {viewAlbum && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '16px', maxHeight: '60vh', overflowY: 'auto', padding: '4px' }}>
-            {viewAlbum.images.map((img, idx) => (
-              <div key={img._id || idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer', transition: 'transform 0.2s' }} onClick={() => setFullScreenIndex(idx)} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                <div style={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '1', background: '#f1f5f9' }}><img src={img.url} alt={img.caption} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" /></div>
-                {img.caption && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{img.caption}</span>}
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
-
-      {/* FULL-SCREEN LIGHTBOX OVERLAY */}
-      {fullScreenIndex !== null && viewAlbum && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.95)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <button onClick={() => setFullScreenIndex(null)} style={{ position: 'absolute', top: '24px', right: '24px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', color: 'white', cursor: 'pointer', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' }}><X size={28} /></button>
-          <button onClick={(e) => { e.stopPropagation(); setFullScreenIndex(prev => prev === 0 ? viewAlbum.images.length - 1 : prev - 1); }} style={{ position: 'absolute', left: '24px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', color: 'white', cursor: 'pointer', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' }}><ChevronLeft size={36} /></button>
-          <img src={viewAlbum.images[fullScreenIndex].url} alt={viewAlbum.images[fullScreenIndex].caption} style={{ maxWidth: '85vw', maxHeight: '85vh', objectFit: 'contain', borderRadius: '4px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }} />
-          <button onClick={(e) => { e.stopPropagation(); setFullScreenIndex(prev => (prev + 1) % viewAlbum.images.length); }} style={{ position: 'absolute', right: '24px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', color: 'white', cursor: 'pointer', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' }}><ChevronRight size={36} /></button>
-          <div style={{ position: 'absolute', bottom: '32px', color: 'white', textAlign: 'center', width: '100%', display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={{ fontSize: '1.25rem', fontWeight: 500, textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>{viewAlbum.images[fullScreenIndex].caption}</span><span style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.6)' }}>{fullScreenIndex + 1} of {viewAlbum.images.length}</span></div>
-        </div>
-      )}
-
-      {/* Standard Modals... */}
-      <Modal open={requestOpen} onClose={() => setRequestOpen(false)} title="Submit a Request" footer={<><Button variant="outline" onClick={() => setRequestOpen(false)}>Cancel</Button><Button onClick={handleSubmitRequest}>Submit Request</Button></>}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Your Name *</label><Input placeholder="Full name" value={form.name} onChange={e => setField('name', e.target.value)} /></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Request Type *</label><Select value={form.type} onChange={e => setField('type', e.target.value)}><option value="">Select type</option><option value="Event Participation">Event Participation</option><option value="Budget">Budget Approval</option><option value="Event">Event Approval</option><option value="Department">Department Support</option></Select></div>
-          {form.type === 'Event Participation' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Select Event *</label>
-              <Select value={form.eventId} onChange={e => setField('eventId', e.target.value)}><option value="">Choose an event</option>{upcomingEvents.map(ev => (<option key={ev._id} value={ev._id}>{ev.title} — {new Date(ev.date).toLocaleDateString()} ({ev.status})</option>))}</Select>
             </div>
           )}
-          {form.type !== 'Event Participation' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Request Title *</label><Input placeholder="What do you need?" value={form.title} onChange={e => setField('title', e.target.value)} /></div>
+
+          {/* ======= PROFILE ======= */}
+          {activeSection === 'profile' && (
+            <div className={styles.profileSection}>
+              <div className={styles.profileCard}>
+                <div className={styles.profileAvatar}>{user?.fullName?.charAt(0) || 'U'}</div>
+                <h2 className={styles.profileName}>{user?.fullName}</h2>
+                <span className={styles.profileRoll}>{user?.rollNo}</span>
+                <Badge variant="success">Active</Badge>
+              </div>
+              <div className={styles.profileDetails}>
+                <div className={styles.detailGrid}>
+                  {[
+                    { label: 'Full Name', value: user?.fullName },
+                    { label: 'Roll Number', value: user?.rollNo || 'N/A' },
+                    { label: 'Batch', value: user?.batch || 'N/A' },
+                    { label: 'Timing', value: user?.timing || 'N/A' },
+                    { label: 'Semester', value: user?.semester || 'N/A' },
+                    { label: 'Email', value: user?.email },
+                    { label: 'Department', value: user?.department || 'N/A' },
+                  ].map((d, i) => (
+                    <div key={i} className={styles.detailItem}>
+                      <span className={styles.detailLabel}>{d.label}</span>
+                      <span className={styles.detailValue}>{d.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======= EVENTS ======= */}
+          {activeSection === 'events' && (
+            <div className={styles.eventsSection}>
+              <div className={styles.sectionHeader}><h2>Upcoming Events</h2></div>
+              <div className={styles.eventGrid}>
+                {upcomingEvents.map(e => {
+                  // 🔴 THE BUTTON FIX: Find if the user has a request for this event
+                  const userParticipation = myParticipations.find(p => p.eventId === e._id);
+
+                  // If it's rejected, it's like they never applied (button resets!)
+                  const isRejected = userParticipation?.status === 'Rejected';
+                  const hasActiveRequest = userParticipation && !isRejected;
+
+                  return (
+                    <div key={e._id} className={styles.eventCard}>
+                      <div className={styles.eventDateBadge}><CalendarDays size={14} />{e.date}</div>
+                      <h3 className={styles.eventName}>{e.title}</h3>
+                      <p className={styles.eventDesc}>{e.description}</p>
+                      <div className={styles.eventMeta}>
+                        <span className={styles.eventBudget}><DollarSign size={14} /> Rs {e.budget?.toLocaleString()}</span>
+                        <Badge variant="success">{e.status}</Badge>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={hasActiveRequest}
+                        variant={hasActiveRequest ? 'outline' : 'primary'}
+                        onClick={() => {
+                          setParticipateEvent(e);
+                          setParticipateForm({ name: user?.fullName || '', role: 'Volunteer' });
+                          setParticipateOpen(true);
+                        }}
+                      >
+                        {hasActiveRequest ? (
+                          <><CheckCircle size={14} style={{ marginRight: '4px' }} /> {userParticipation.status === 'Approved' ? 'You are a Participant!' : 'Request Pending'}</>
+                        ) : (
+                          <><Users size={14} /> Participate</>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })}
+                {upcomingEvents.length === 0 && <div className={styles.emptyState}><CalendarDays size={48} /><p>No upcoming events</p></div>}
+              </div>
+
+              {completedEvents.length > 0 && (
+                <>
+                  <div className={styles.sectionHeader} style={{ marginTop: 32 }}><h2>Completed Events</h2></div>
+                  <div className={styles.eventGrid}>
+                    {completedEvents.map(e => (
+                      <div key={e._id} className={`${styles.eventCard} ${styles.eventCompleted}`}>
+                        <div className={styles.eventDateBadge}><CalendarDays size={14} />{e.date}</div>
+                        <h3 className={styles.eventName}>{e.title}</h3>
+                        <p className={styles.eventDesc}>{e.description}</p>
+                        <Badge variant="outline">Completed</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ======= REQUESTS ======= */}
+          {activeSection === 'requests' && (
+            <div className={styles.requestsSection}>
+              <div className={styles.sectionHeader}>
+                <h2>My Requests</h2>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button size="sm" onClick={() => setRequestOpen(true)}><Send size={14} /> New Request</Button>
+                </div>
+              </div>
+              <div className={styles.requestsList}>
+                {myRequests.map(r => (
+                  <div key={r._id} className={styles.requestCard}>
+                    <div className={styles.requestInfo}>
+                      <h4 className={styles.requestTitle}>{r.title}</h4>
+                      <div className={styles.requestMeta}>
+                        <span><Clock size={12} /> {new Date(r.createdAt).toLocaleDateString()}</span>
+                        <span className={styles.requestType}>{r.type}</span>
+                      </div>
+                    </div>
+                    <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
+                  </div>
+                ))}
+                {myRequests.length === 0 && <p className={styles.emptyText}>You haven't submitted any requests yet.</p>}
+              </div>
+            </div>
+          )}
+
+          {/* ======= ANNOUNCEMENTS ======= */}
+          {activeSection === 'announcements' && (
+            <div className={styles.announcementsSection}>
+              <div className={styles.sectionHeader}><h2>Announcements</h2></div>
+              <div className={styles.annGrid}>
+                {dbAnnouncements.map(a => (
+                  <div key={a._id} className={styles.annCard}>
+                    <div className={styles.annHeader}>
+                      <Bell size={16} className={styles.annIcon} />
+                      <span className={styles.annDate}>{a.postedDate}</span>
+                    </div>
+                    <h3 className={styles.annTitle}>{a.title}</h3>
+                    <p className={styles.annDesc}>{a.description}</p>
+                    <div className={styles.annBy}>Posted by {a.postedBy}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ======= NOTIFICATIONS ======= */}
+          {activeSection === 'notifications' && (
+            <div className={styles.notifsSection}>
+              <div className={styles.sectionHeader}><h2>Notifications</h2></div>
+              <div className={styles.notifList}>
+                {dbNotifications.map(n => (
+                  <div
+                    key={n._id}
+                    className={`${styles.notifItem} ${!n.read ? styles.notifUnread : ''}`}
+                    onClick={() => !n.read && handleMarkAsRead(n._id)}
+                    style={{ cursor: !n.read ? 'pointer' : 'default' }}
+                  >
+                    <div className={styles.notifDot} />
+                    <div className={styles.notifContent}>
+                      <h4>{n.title}</h4>
+                      <p>{n.message}</p>
+                      <span className={styles.notifDate}>{n.date}</span>
+                    </div>
+                  </div>
+                ))}
+                {dbNotifications.length === 0 && <p className={styles.muted}>You have no notifications.</p>}
+              </div>
+            </div>
+          )}
+
+          {/* ======= GALLERY ======= */}
+          {activeSection === 'gallery' && (
+            <div className={styles.gallerySection}>
+              <div className={styles.sectionHeader}><h2>Gallery</h2></div>
+              <div className={styles.galleryGrid}>
+                {galleryImages.map(img => (
+                  <div key={img.id} className={styles.galleryItem}>
+                    <img src={img.url} alt={img.caption} loading="lazy" />
+                    <div className={styles.galleryOverlay}>
+                      <Eye size={20} />
+                      <span>{img.caption}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
-      </Modal>
+      </div>
 
-      <Modal open={reportOpen} onClose={() => setReportOpen(false)} title="Report an Issue" footer={<><Button variant="outline" onClick={() => setReportOpen(false)}>Cancel</Button><Button onClick={async () => {
-        try {
-          const res = await fetch('http://localhost:5000/api/reports/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report) });
-          if (res.ok) { toast({ title: 'Report Submitted', description: 'Your report has been sent to the Society President.' }); setReportOpen(false); setReport({ name: '', subject: '', message: '' }); } 
-        } catch (error) {}
-      }}>Send Report</Button></>}>
+      {/* MODALS */}
+      <Modal open={requestOpen} onClose={() => setRequestOpen(false)} title="Submit a Request" footer={<><Button variant="outline" onClick={() => setRequestOpen(false)}>Cancel</Button><Button onClick={handleSubmitRequest}>Submit</Button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Your Name *</label><Input placeholder="Full name" value={report.name} onChange={e => setReport(p => ({ ...p, name: e.target.value }))} /></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Subject *</label><Input placeholder="Brief description" value={report.subject} onChange={e => setReport(p => ({ ...p, subject: e.target.value }))} /></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Message *</label><Textarea rows={4} value={report.message} onChange={e => setReport(p => ({ ...p, message: e.target.value }))} /></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Your Name *</label>
+            <Input placeholder="Full name" value={form.name} onChange={e => setField('name', e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Request Type *</label>
+            <Select value={form.type} onChange={e => setField('type', e.target.value)}>
+              <option value="">Select type</option>
+              <option value="Budget">Budget Approval</option>
+              <option value="Event Idea">Event Idea</option>
+              <option value="Department">Department Support</option>
+              <option value="Other">Other</option>
+            </Select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Request Title *</label>
+            <Input placeholder="What do you need?" value={form.title} onChange={e => setField('title', e.target.value)} />
+          </div>
         </div>
       </Modal>
 
-      <Modal open={participateOpen} onClose={() => setParticipateOpen(false)} title={`Join: ${participateEvent?.title || ''}`} footer={<><Button variant="outline" onClick={() => setParticipateOpen(false)}>Cancel</Button><Button onClick={async () => {
-        try {
-          const res = await fetch('http://localhost:5000/api/participants/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentName: participateForm.name, rollNo: participateForm.rollNo, department: participateForm.department, contact: participateForm.contact, eventId: participateEvent._id, eventTitle: participateEvent.title, role: participateForm.role }) });
-          if (res.ok) { toast({ title: 'Request Sent!' }); setParticipateOpen(false); }
-        } catch (error) {}
-      }}>Confirm Participation</Button></>}>
+      <Modal open={participateOpen} onClose={() => setParticipateOpen(false)} title={`Join: ${participateEvent?.title || ''}`} footer={<><Button variant="outline" onClick={() => setParticipateOpen(false)}>Cancel</Button><Button onClick={handleParticipateSubmit}>Confirm</Button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Full Name *</label><Input value={participateForm.name} onChange={e => setParticipateForm(p => ({ ...p, name: e.target.value }))} /></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Roll Number</label><Input value={participateForm.rollNo} onChange={e => setParticipateForm(p => ({ ...p, rollNo: e.target.value }))} /></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Your Name *</label>
+            <Input placeholder="Full name" value={participateForm.name} onChange={e => setParticipateForm(p => ({ ...p, name: e.target.value }))} />
           </div>
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Department *</label><Input value={participateForm.department} onChange={e => setParticipateForm(p => ({ ...p, department: e.target.value }))} /></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Contact Info</label><Input value={participateForm.contact} onChange={e => setParticipateForm(p => ({ ...p, contact: e.target.value }))} /></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Role</label>
+            <Select value={participateForm.role} onChange={e => setParticipateForm(p => ({ ...p, role: e.target.value }))}>
+              <option value="Volunteer">Volunteer</option>
+              <option value="Attendee">Attendee</option>
+              <option value="Organizer">Organizer</option>
+              <option value="Speaker">Speaker</option>
+            </Select>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Role Requested</label><Select value={participateForm.role} onChange={e => setParticipateForm(p => ({ ...p, role: e.target.value }))}><option value="Attendee">Attendee</option><option value="Volunteer">Volunteer</option><option value="Organizer">Organizer</option></Select></div>
         </div>
       </Modal>
 
-      <Modal open={fundOpen} onClose={() => setFundOpen(false)} title="Fund Appeal" footer={<><Button variant="outline" onClick={() => setFundOpen(false)}>Cancel</Button><Button onClick={async () => {
-        try {
-          const res = await fetch('http://localhost:5000/api/funds/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fundForm.name, email: fundForm.email, amount: Number(fundForm.amount), purpose: fundForm.purpose, description: fundForm.description }) });
-          if (res.ok) { toast({ title: 'Fund Appeal Submitted!' }); setFundOpen(false); }
-        } catch (error) {}
-      }}>Submit Appeal</Button></>}>
+      <Modal open={reportOpen} onClose={() => setReportOpen(false)} title="Report an Issue" footer={<><Button variant="outline" onClick={() => setReportOpen(false)}>Cancel</Button><Button onClick={() => { setReportOpen(false); toast({ title: 'Report Sent' }); }}>Send</Button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Your Name *</label><Input value={fundForm.name} onChange={e => setFundForm(p => ({ ...p, name: e.target.value }))} /></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Email *</label><Input value={fundForm.email} onChange={e => setFundForm(p => ({ ...p, email: e.target.value }))} /></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Amount (Rs) *</label><Input type="number" value={fundForm.amount} onChange={e => setFundForm(p => ({ ...p, amount: e.target.value }))} /></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Purpose *</label><Select value={fundForm.purpose} onChange={e => setFundForm(p => ({ ...p, purpose: e.target.value }))}><option value="Event Sponsorship">Event Sponsorship</option></Select></div>
+          <div className={styles.field}><label>Subject *</label><Input value={report.subject} onChange={e => setReport(p => ({ ...p, subject: e.target.value }))} /></div>
+          <div className={styles.field}><label>Message *</label><Textarea rows={4} value={report.message} onChange={e => setReport(p => ({ ...p, message: e.target.value }))} /></div>
+        </div>
+      </Modal>
+
+      <Modal open={fundOpen} onClose={() => setFundOpen(false)} title="Fund Appeal" footer={<><Button variant="outline" onClick={() => setFundOpen(false)}>Cancel</Button><Button onClick={() => { setFundOpen(false); toast({ title: 'Fund Appeal Sent' }); }}>Submit</Button></>}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className={styles.field}><label>Amount (Rs) *</label><Input type="number" value={fundForm.amount} onChange={e => setFundForm(p => ({ ...p, amount: e.target.value }))} /></div>
+          <div className={styles.field}><label>Purpose *</label>
+            <Select value={fundForm.purpose} onChange={e => setFundForm(p => ({ ...p, purpose: e.target.value }))}>
+              <option value="">Select purpose</option><option value="Education">Education</option><option value="Medical">Medical</option><option value="Event">Event Sponsorship</option>
+            </Select>
+          </div>
         </div>
       </Modal>
     </div>

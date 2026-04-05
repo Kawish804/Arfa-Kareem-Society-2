@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Trash2, Eye, FileText, X, Filter, Download } from 'lucide-react';
+import { Wallet, Trash2, Eye, FileText, X, Filter, Download, AlertTriangle } from 'lucide-react';
 import PageHeader from '@/components/PageHeader.jsx';
 import StatCard from '@/components/StatCard.jsx';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Select from '@/components/ui/Select.jsx';
 import Badge from '@/components/ui/Badge.jsx';
-import Modal from '@/components/ui/Modal.jsx'; // We'll use this for consistency
+import Modal from '@/components/ui/Modal.jsx'; 
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './Expenses.module.css';
 
@@ -19,15 +19,20 @@ const Expenses = () => {
   const [form, setForm] = useState(emptyForm);
   const [previewReceipt, setPreviewReceipt] = useState(null);
   const [timeFilter, setTimeFilter] = useState('All');
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/expenses/records')
+    const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
+
+    // Fetch All Expenses
+    fetch('http://localhost:5000/api/expenses/records', { headers })
       .then(res => res.json())
       .then(data => setExpenseList(data))
       .catch(err => console.error("Error fetching expenses:", err));
 
-    fetch('http://localhost:5000/api/fund-collections/records')
+    // Fetch All Funds to calculate total bank account
+    fetch('http://localhost:5000/api/fund-collections/records', { headers })
       .then(res => res.json())
       .then(data => {
         const collected = data.filter(f => f.status === 'Paid').reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
@@ -60,8 +65,16 @@ const Expenses = () => {
   };
 
   const filteredExpenses = getFilteredExpenses();
-  const totalExpenses = filteredExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const remaining = totalCollectedFunds - totalExpenses;
+  
+  // 🔴 REAL WORLD MATH FIX
+  // The Total spent in the current filter view:
+  const filteredExpensesAmount = filteredExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  
+  // The ALL-TIME expenses (used to calculate actual bank balance)
+  const allTimeExpensesAmount = expenseList.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  
+  // The TRUE remaining balance (All funds collected ever - All expenses ever)
+  const remaining = totalCollectedFunds - allTimeExpensesAmount;
 
   const exportToCSV = () => {
     if (filteredExpenses.length === 0) {
@@ -100,38 +113,66 @@ const Expenses = () => {
     if (!form.title || !form.amount || !form.category) {
       toast({ title: 'Please fill all required fields', variant: 'destructive' }); return;
     }
+
+    const expenseAmount = Number(form.amount);
+
+    // 🔴 REAL WORLD LOGIC: OVERDRAFT PROTECTION
+    if (expenseAmount > remaining) {
+      toast({ 
+        title: 'Transaction Denied: Insufficient Funds', 
+        description: `You are trying to spend Rs ${expenseAmount.toLocaleString()}, but the society treasury only has Rs ${remaining.toLocaleString()} available.`, 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    setSaving(true);
     const newExpense = { 
       title: form.title, 
       category: form.category, 
-      amount: Number(form.amount), 
+      amount: expenseAmount, 
       date: form.date || new Date().toISOString().split('T')[0],
       receiptName: form.receipt ? form.receipt.name : null,
       receiptData: form.receiptPreview || null,
     };
+
     try {
       const res = await fetch('http://localhost:5000/api/expenses/record', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
+        },
         body: JSON.stringify(newExpense)
       });
+      
       if (res.ok) {
         const savedExpense = await res.json();
         setExpenseList(prev => [savedExpense, ...prev]);
-        toast({ title: 'Expense Added' });
+        toast({ title: 'Expense Added Successfully', description: `Rs ${expenseAmount.toLocaleString()} has been deducted from the treasury.` });
         setDialogOpen(false);
         setForm(emptyForm);
+      } else {
+        toast({ title: 'Failed to add expense', variant: 'destructive' });
       }
     } catch (error) {
-      toast({ title: 'Failed to add expense', variant: 'destructive' });
+      toast({ title: 'Server Error', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, amount, title) => {
+    if (!window.confirm(`Are you sure you want to delete "${title}"? \n\nRs ${amount.toLocaleString()} will be refunded back to the available society balance.`)) return;
+
     try {
-      const res = await fetch(`http://localhost:5000/api/expenses/record/${id}`, { method: 'DELETE' });
+      const res = await fetch(`http://localhost:5000/api/expenses/record/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
+      });
       if (res.ok) {
         setExpenseList(prev => prev.filter(x => x._id !== id));
-        toast({ title: 'Expense Deleted', variant: 'destructive' });
+        toast({ title: 'Expense Refunded', description: `Rs ${amount.toLocaleString()} has been returned to the balance.`, variant: 'default' });
       }
     } catch (error) {
       toast({ title: 'Failed to delete', variant: 'destructive' });
@@ -140,7 +181,7 @@ const Expenses = () => {
 
   return (
     <div>
-      <PageHeader title="Expense Management" description="Track and manage society expenses" actionLabel="Add Expense" onAction={() => { setForm(emptyForm); setDialogOpen(true); }} />
+      <PageHeader title="Expense Management" description="Track and manage society expenses from the treasury" actionLabel="Add Expense" onAction={() => { setForm(emptyForm); setDialogOpen(true); }} />
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', alignItems: 'center' }}>
         <Filter size={16} color="var(--text-muted)" style={{ marginRight: '4px' }} />
@@ -150,8 +191,26 @@ const Expenses = () => {
       </div>
 
       <div className={styles.statsRow} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-        <StatCard title={`Total Expenses (${timeFilter})`} value={`Rs ${totalExpenses.toLocaleString()}`} icon={Wallet} />
-        <StatCard title="Available Balance" value={`Rs ${remaining.toLocaleString()}`} icon={Wallet} description={`Based on Rs ${totalCollectedFunds.toLocaleString()} total funds collected`} />
+        <StatCard title={`Total Expenses (${timeFilter})`} value={`Rs ${filteredExpensesAmount.toLocaleString()}`} icon={Wallet} />
+        
+        {/* Real-time Dynamic Balance Card */}
+        <div style={{ padding: '20px', backgroundColor: remaining < 5000 ? '#fef2f2' : 'white', border: `1px solid ${remaining < 5000 ? '#f87171' : '#e2e8f0'}`, borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: '500' }}>Actual Available Balance</span>
+            <Wallet size={20} color={remaining < 5000 ? '#ef4444' : 'var(--primary)'} />
+          </div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: remaining < 5000 ? '#ef4444' : '#0f172a' }}>
+            Rs {remaining.toLocaleString()}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+            Based on Rs {totalCollectedFunds.toLocaleString()} total all-time funds
+          </div>
+          {remaining < 5000 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '0.75rem', color: '#ef4444', fontWeight: 'bold' }}>
+              <AlertTriangle size={14} /> Low Treasury Warning
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -168,31 +227,37 @@ const Expenses = () => {
               <th className={styles.hideSmall}>Category</th>
               <th className={styles.hideMd}>Date</th>
               <th>Receipt</th>
-              <th>Actions</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredExpenses.map(e => (
+            {filteredExpenses.length > 0 ? filteredExpenses.map(e => (
               <tr key={e._id}>
                 <td className={styles.bold}>{e.title}</td>
-                <td className={styles.bold}>Rs {e.amount?.toLocaleString() || 0}</td>
+                <td className={styles.bold} style={{ color: '#ef4444' }}>- Rs {e.amount?.toLocaleString() || 0}</td>
                 <td className={styles.hideSmall}><Badge variant="secondary">{e.category}</Badge></td>
                 <td className={`${styles.hideMd} ${styles.muted}`}>{e.date ? new Date(e.date).toLocaleDateString() : '—'}</td>
                 <td>
                   {e.receiptData ? (
-                    <button className={styles.viewReceiptBtn} onClick={() => setPreviewReceipt(e)}><Eye size={14} /> View</button>
+                    <Button variant="outline" size="sm" onClick={() => setPreviewReceipt(e)} style={{ padding: '4px 8px' }}><Eye size={14} style={{ marginRight: '4px'}} /> View</Button>
                   ) : (
                     <span className={styles.muted}>—</span>
                   )}
                 </td>
-                <td><Button variant="ghost" size="icon" onClick={() => handleDelete(e._id)}><Trash2 size={16} color="var(--destructive)" /></Button></td>
+                <td style={{ textAlign: 'right' }}>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(e._id, e.amount, e.title)}>
+                    <Trash2 size={16} color="var(--destructive)" />
+                  </Button>
+                </td>
               </tr>
-            ))}
+            )) : (
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>No expenses found for this period.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* FIXED RECEIPT MODAL: Now uses the standard Modal component */}
+      {/* RECEIPT PREVIEW MODAL */}
       <Modal 
         open={!!previewReceipt} 
         onClose={() => setPreviewReceipt(null)} 
@@ -220,30 +285,54 @@ const Expenses = () => {
         )}
       </Modal>
 
-      {/* Add Expense Modal */}
-      <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title="Add Expense" footer={<><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={handleSave}>Save</Button></>}>
+      {/* ADD EXPENSE MODAL */}
+      <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title="Record New Expense" footer={<><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? 'Processing...' : 'Deduct Funds'}</Button></>}>
         <div className={styles.formFields}>
-          <div className={styles.field}><label>Title *</label><Input placeholder="Expense title" value={form.title} onChange={e => setField('title', e.target.value)} /></div>
-          <div className={styles.field}>
-            <label>Category *</label>
-            <Select value={form.category} onChange={e => setField('category', e.target.value)}>
-              <option value="">Select</option><option value="Events">Events</option><option value="Marketing">Marketing</option><option value="Equipment">Equipment</option><option value="Stationery">Stationery</option><option value="Gifts">Gifts</option><option value="Other">Other</option>
-            </Select>
+          
+          {/* Overdraft Warning Banner */}
+          <div style={{ padding: '10px 15px', backgroundColor: '#eff6ff', borderLeft: '4px solid var(--primary)', borderRadius: '6px', marginBottom: '15px', fontSize: '0.85rem' }}>
+            <strong>Available Treasury Balance:</strong> Rs {remaining.toLocaleString()}
           </div>
-          <div className={styles.field}><label>Amount (Rs) *</label><Input type="number" placeholder="0" value={form.amount} onChange={e => setField('amount', e.target.value)} /></div>
-          <div className={styles.field}><label>Date</label><Input type="date" value={form.date} onChange={e => setField('date', e.target.value)} /></div>
-          <div className={styles.field}>
-            <label>Upload Receipt</label>
-            <div className={styles.uploadWrap} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <input type="file" accept="image/*,.pdf" id="expenseReceiptUpload" className={styles.fileInput} onChange={handleFileChange} style={{ display: 'none' }} />
-              <label htmlFor="expenseReceiptUpload" className={styles.uploadBtn} style={{ cursor: 'pointer', padding: '8px 12px', border: '1px dashed var(--border)', borderRadius: '6px', textAlign: 'center', color: 'var(--primary)' }}>
-                {form.receipt ? form.receipt.name : '+ Choose file...'}
-              </label>
-              {form.receiptPreview && form.receiptPreview.startsWith('data:image') && (
-                <img src={form.receiptPreview} alt="Preview" style={{ maxHeight: '100px', objectFit: 'contain', borderRadius: '4px', border: '1px solid var(--border)' }} />
-              )}
+
+          <div className={styles.field}><label>Title *</label><Input placeholder="e.g., Pizza for Meeting" value={form.title} onChange={e => setField('title', e.target.value)} /></div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className={styles.field}>
+              <label>Category *</label>
+              <Select value={form.category} onChange={e => setField('category', e.target.value)}>
+                <option value="">Select</option>
+                <option value="Events">Events</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Equipment">Equipment</option>
+                <option value="Stationery">Stationery</option>
+                <option value="Gifts">Gifts</option>
+                <option value="Refreshments">Refreshments</option>
+                <option value="Other">Other</option>
+              </Select>
+            </div>
+            <div className={styles.field}><label>Amount (Rs) *</label><Input type="number" placeholder="0" value={form.amount} onChange={e => setField('amount', e.target.value)} /></div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
+            <div className={styles.field}><label>Date</label><Input type="date" value={form.date} onChange={e => setField('date', e.target.value)} /></div>
+            
+            <div className={styles.field}>
+              <label>Upload Receipt</label>
+              <div className={styles.uploadWrap} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <input type="file" accept="image/*,.pdf" id="expenseReceiptUpload" className={styles.fileInput} onChange={handleFileChange} style={{ display: 'none' }} />
+                <label htmlFor="expenseReceiptUpload" className={styles.uploadBtn} style={{ cursor: 'pointer', padding: '8px 12px', border: '1px dashed var(--border)', borderRadius: '6px', textAlign: 'center', color: 'var(--primary)' }}>
+                  {form.receipt ? form.receipt.name : '+ Choose file...'}
+                </label>
+              </div>
             </div>
           </div>
+          
+          {form.receiptPreview && form.receiptPreview.startsWith('data:image') && (
+            <div style={{ marginTop: '10px', textAlign: 'center' }}>
+              <img src={form.receiptPreview} alt="Preview" style={{ maxHeight: '120px', objectFit: 'contain', borderRadius: '4px', border: '1px solid var(--border)' }} />
+            </div>
+          )}
+
         </div>
       </Modal>
     </div>

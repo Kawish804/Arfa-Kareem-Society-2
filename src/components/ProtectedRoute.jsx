@@ -1,23 +1,23 @@
+// INSIDE YOUR ProtectedRoute.jsx
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth } from '../context/AuthContext';
 
 const ProtectedRoute = ({ allowedRoles }) => {
   const { user, loading } = useAuth();
 
-  if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Verifying Access...</div>;
+  if (loading) return <div>Loading...</div>;
+  if (!user) return <Navigate to="/login" replace />;
 
-  // 1. If not logged in at all, kick them to the login page
-  if (!user) {
-    return <Navigate to="/login" replace />;
+  // 🔴 CHECK IF ANY OF THE USER'S ROLES MATCH THE ALLOWED ROLES
+  // Ensures it works whether user.role is a String (old users) or an Array (new users)
+  const userRoles = Array.isArray(user.role) ? user.role : [user.role];
+  
+  const hasAccess = allowedRoles.some(allowedRole => userRoles.includes(allowedRole));
+
+  if (!hasAccess) {
+    return <Navigate to="/unauthorized" replace />; // Or redirect to their default dashboard
   }
 
-  // 2. If logged in, but their role isn't in the "allowedRoles" list, redirect them safely
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    if (user.role === 'CR') return <Navigate to="/cr-dashboard" replace />;
-    return <Navigate to="/" replace />; // Fallback to the Student Portal (Home)
-  }
-
-  // 3. If they pass the checks, let them render the page!
   return <Outlet />;
 };
 

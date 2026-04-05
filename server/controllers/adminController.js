@@ -4,6 +4,7 @@ const Expense = require('../models/Expense');
 const Event = require('../models/Event');
 const ClassStudent = require('../models/ClassStudent');
 const nodemailer = require('nodemailer');
+const bcrypt = require('bcryptjs'); // 🔴 NEW: Needed to securely hash passwords when editing
 
 // Setup Nodemailer transporter
 const transporter = nodemailer.createTransport({
@@ -92,7 +93,7 @@ exports.getDashboardStats = async (req, res) => {
         const expenses = await Expense.find();
         const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-        // Calculate real Active Events (INSIDE the async function!)
+        // Calculate real Active Events 
         const activeEvents = await Event.countDocuments({
             status: { $in: ['Upcoming', 'Ongoing'] }
         });
@@ -145,6 +146,7 @@ exports.getDashboardStats = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch dashboard statistics" });
     }
 };
+
 exports.manuallyActivateUser = async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
@@ -157,7 +159,7 @@ exports.manuallyActivateUser = async (req, res) => {
     }
 };
 
-// 2. Transfer Presidency
+// Transfer Presidency
 exports.transferPresidency = async (req, res) => {
     try {
         const { newPresidentId } = req.params;
@@ -171,15 +173,15 @@ exports.transferPresidency = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
 exports.uploadClassList = async (req, res) => {
     try {
-        const { students } = req.body; // Expecting an array of student objects
+        const { students } = req.body; 
 
         if (!students || students.length === 0) {
             return res.status(400).json({ message: "No students provided." });
         }
 
-        // Insert all students into the database at once
         await ClassStudent.insertMany(students);
 
         res.status(201).json({ message: `${students.length} students uploaded successfully!` });
@@ -188,12 +190,66 @@ exports.uploadClassList = async (req, res) => {
     }
 };
 
-// 2. Admin Views All Class Funds
+// Admin Views All Class Funds
 exports.getAllClassFunds = async (req, res) => {
     try {
         const allStudents = await ClassStudent.find().sort({ department: 1, semester: 1 });
         res.status(200).json(allStudents);
     } catch (error) {
         res.status(500).json({ error: "Failed to fetch funds." });
+    }
+};
+
+// ==========================================
+// 🔴 NEW: UPDATE USER (EDIT MEMBER)
+// ==========================================
+exports.updateUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        let updateData = { ...req.body };
+
+        // If the President typed a new password, we MUST scramble it securely!
+        if (updateData.password && updateData.password.trim() !== '') {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password = await bcrypt.hash(updateData.password, salt);
+        } else {
+            // If they left it blank, delete it from the payload so we don't accidentally wipe their current password
+            delete updateData.password;
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            updateData,
+            { returnDocument: 'after', runValidators: true }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: "User not found in database." });
+        }
+
+        res.status(200).json({ message: "User updated successfully", user: updatedUser });
+    } catch (error) {
+        console.error("🔴 UPDATE USER ERROR:", error);
+        res.status(500).json({ message: "Server error while updating user." });
+    }
+};
+
+// ==========================================
+// 🔴 NEW: DELETE USER 
+// ==========================================
+exports.deleteUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        const deletedUser = await User.findByIdAndDelete(userId);
+
+        if (!deletedUser) {
+            return res.status(404).json({ message: "User not found in database." });
+        }
+
+        res.status(200).json({ message: "User deleted successfully." });
+    } catch (error) {
+        console.error("🔴 DELETE USER ERROR:", error);
+        res.status(500).json({ message: "Server error while deleting user." });
     }
 };

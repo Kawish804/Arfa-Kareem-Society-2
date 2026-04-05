@@ -29,28 +29,42 @@ const Login = () => {
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }) // No more role!
+        body: JSON.stringify({ email, password })
       });
 
       const data = await response.json();
 
       if (response.ok) {
+        // Guarantee user roles is handled as an array
+        const userRoles = Array.isArray(data.user.role) ? data.user.role : [data.user.role || 'Class Representative'];
+
         sessionStorage.setItem('token', data.token);
-        sessionStorage.setItem('userRole', data.user.role);
+        sessionStorage.setItem('userRole', JSON.stringify(userRoles)); 
         login(data.user);
+        
         toast({ title: 'Login Successful', description: `Welcome back, ${data.user.fullName}!` });
 
-        // Direct them based on what the DATABASE says their role is
-        const userRole = data.user.role;
-        if (userRole === 'President') navigate('/dashboard');
-        else if (userRole === 'Class Representative') navigate('/cr-dashboard');
-        else if (userRole === 'General Secretary') navigate('/gs-dashboard');
-        else if (userRole === 'Joint General Secretary') navigate('/joint-gs-dashboard');
-        else if (userRole === 'Finance Head') navigate('/finance-dashboard');
-        else if (userRole === 'Assistant Finance') navigate('/assistant-finance-dashboard');
-        else if (userRole === 'Media Manager') navigate('/media-pr-dashboard');
-        else if (userRole === 'Co-Media Manager') navigate('/co-media-dashboard');
-        else navigate('/student');
+        // 🔴 STRICT ROUTING: ONLY checks against the 8 official roles
+        if (userRoles.includes('President')) {
+          navigate('/dashboard');
+        } else if (userRoles.includes('General Secretary')) {
+          navigate('/gs-dashboard');
+        } else if (userRoles.includes('Joint General Secretary')) {
+          navigate('/joint-gs-dashboard');
+        } else if (userRoles.includes('Finance Head')) {
+          navigate('/finance-dashboard');
+        } else if (userRoles.includes('Assistant Finance Head')) {
+          navigate('/assistant-finance-dashboard');
+        } else if (userRoles.includes('Media Manager')) {
+          navigate('/media-pr-dashboard');
+        } else if (userRoles.includes('Co-Media Manager')) {
+          navigate('/co-media-dashboard');
+        } else if (userRoles.includes('Class Representative')) {
+          navigate('/cr-dashboard');
+        } else {
+          navigate('/student'); // Ultimate fallback just in case
+        }
+        
       } else {
         toast({ title: 'Login Failed', description: data.message || 'Invalid credentials', variant: 'destructive' });
       }
@@ -83,7 +97,6 @@ const Login = () => {
               </button>
             </div>
           </div>
-          {/* ROLE DROPDOWN DELETED ENTIRELY! */}
           <Button type="submit" className={styles.submitBtn} disabled={loading}>
             {loading ? 'Verifying...' : 'Sign In'}
           </Button>
