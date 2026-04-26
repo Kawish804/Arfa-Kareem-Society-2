@@ -6,6 +6,7 @@ const settingsSchema = new mongoose.Schema({
     university: { type: String, default: 'University of Education' },
     email: { type: String, default: 'info@arfakareem.edu' },
     phone: { type: String, default: '+92-300-1234567' },
+    monthlyFee: { type: Number, default: 500 }, // 🔴 NEW: Added monthly fee here!
     notifications: {
         email: { type: Boolean, default: true },
         events: { type: Boolean, default: true },

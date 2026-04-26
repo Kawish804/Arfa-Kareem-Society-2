@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GraduationCap, Megaphone, Users, Bell, LogOut, Plus, Send, FileText, ClipboardList, MessageSquare, UserCheck, AlertTriangle } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
@@ -7,67 +7,141 @@ import Modal from '@/components/ui/Modal.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
 import Select from '@/components/ui/Select.jsx';
-import { members, announcements as initialAnnouncements, requests as initialRequests, events, complaints as initialComplaints, notifications as initialNotifications } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
+import { useAuth } from '@/context/AuthContext.jsx'; // 🔴 LIVE USER
+import TransferRoleWidget from '@/components/TransferRoleWidget.jsx';
 import styles from './GeneralSecretaryDashboard.module.css';
-
-const currentUser = { name: 'Fatima Ali', role: 'General Secretary' };
 
 const GeneralSecretaryDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('overview');
-  const [announcementList, setAnnouncementList] = useState(initialAnnouncements);
-  const [requestList, setRequestList] = useState(initialRequests);
-  const [complaintList, setComplaintList] = useState(initialComplaints);
-  const [notifs] = useState(initialNotifications);
+  const { user: currentUser, logout } = useAuth();
 
-  // Announcement dialog
+  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
+
+  // 🔴 LIVE DATABASE STATES
+  const [members, setMembers] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [complaints, setComplaints] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [minutes, setMinutes] = useState([]);
+  const [notifs, setNotifs] = useState([]);
+
+  // Modals
   const [annDialog, setAnnDialog] = useState(false);
   const [annForm, setAnnForm] = useState({ title: '', description: '', priority: 'Normal' });
-
-  // Meeting minutes
-  const [minutes, setMinutes] = useState([
-    { id: '1', title: 'Weekly Sync - Week 12', date: '2024-03-15', attendees: 8, summary: 'Discussed upcoming tech summit planning and budget allocation.' },
-    { id: '2', title: 'Emergency Meeting', date: '2024-03-10', attendees: 5, summary: 'Resolved venue conflict for annual day event.' },
-  ]);
   const [minuteDialog, setMinuteDialog] = useState(false);
   const [minuteForm, setMinuteForm] = useState({ title: '', attendees: '', summary: '' });
 
-  const activeMembers = members.filter(m => m.status === 'Active').length;
-  const pendingRequests = requestList.filter(r => r.status === 'Pending').length;
-  const pendingComplaints = complaintList.filter(c => c.status === 'Pending').length;
+  // 🔴 FETCH ALL DATA ON LOAD
+  useEffect(() => {
+    const fetchGSData = async () => {
+      const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
+
+      try {
+        const [memRes, annRes, reqRes, compRes, evRes, minRes, notifRes] = await Promise.all([
+          fetch('http://localhost:5000/api/admin/users', { headers }),
+          fetch('http://localhost:5000/api/announcements', { headers }),
+          fetch('http://localhost:5000/api/requests', { headers }),
+          fetch('http://localhost:5000/api/complaints', { headers }).catch(() => ({ ok: false })), // New endpoint
+          fetch('http://localhost:5000/api/events', { headers }),
+          fetch('http://localhost:5000/api/minutes', { headers }).catch(() => ({ ok: false })), // New endpoint
+          fetch('http://localhost:5000/api/notifications/all', { headers })
+        ]);
+
+        if (memRes.ok) setMembers(await memRes.json());
+        if (annRes.ok) setAnnouncements(await annRes.json());
+        if (reqRes.ok) setRequests(await reqRes.json());
+        if (compRes.ok) setComplaints(await compRes.json());
+        if (evRes.ok) setEvents(await evRes.json());
+        if (minRes.ok) setMinutes(await minRes.json());
+        if (notifRes.ok) {
+          const allNotifs = await notifRes.json();
+          setNotifs(allNotifs.filter(n => !n.targetUser || n.targetUser === currentUser?.fullName));
+        }
+      } catch (error) {
+        toast({ title: 'Failed to sync society data', variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGSData();
+  }, [currentUser, toast]);
+
+  // 🔴 DYNAMIC CALCULATIONS
+  const activeMembers = members.filter(m => m.status === 'Active' || m.isActive).length;
+  const pendingRequests = requests.filter(r => r.status === 'Pending').length;
+  const pendingComplaints = complaints.filter(c => c.status === 'Pending').length;
   const upcomingEvents = events.filter(e => e.status === 'Upcoming').length;
+  const unreadNotifs = notifs.filter(n => !n.read).length;
 
-  const handleAddAnnouncement = () => {
+  // 🔴 API ACTIONS
+  const handleAddAnnouncement = async () => {
     if (!annForm.title) { toast({ title: 'Title required', variant: 'destructive' }); return; }
-    setAnnouncementList(prev => [...prev, { id: String(Date.now()), title: annForm.title, description: annForm.description, postedDate: new Date().toISOString().split('T')[0], postedBy: currentUser.name, priority: annForm.priority }]);
-    toast({ title: 'Announcement posted' });
-    setAnnDialog(false);
-    setAnnForm({ title: '', description: '', priority: 'Normal' });
+    try {
+      const payload = { ...annForm, postedBy: currentUser?.fullName, date: new Date().toISOString() };
+      const res = await fetch('http://localhost:5000/api/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const newAnn = await res.json();
+        setAnnouncements(prev => [newAnn, ...prev]);
+        toast({ title: 'Announcement posted successfully' });
+        setAnnDialog(false);
+        setAnnForm({ title: '', description: '', priority: 'Normal' });
+      } else throw new Error();
+    } catch (err) { toast({ title: 'Failed to post announcement', variant: 'destructive' }); }
   };
 
-  const handleAddMinute = () => {
+  const handleAddMinute = async () => {
     if (!minuteForm.title) { toast({ title: 'Title required', variant: 'destructive' }); return; }
-    setMinutes(prev => [...prev, { id: String(Date.now()), title: minuteForm.title, date: new Date().toISOString().split('T')[0], attendees: Number(minuteForm.attendees) || 0, summary: minuteForm.summary }]);
-    toast({ title: 'Minutes recorded' });
-    setMinuteDialog(false);
-    setMinuteForm({ title: '', attendees: '', summary: '' });
+    try {
+      const payload = { ...minuteForm, recordedBy: currentUser?.fullName, date: new Date().toISOString() };
+      const res = await fetch('http://localhost:5000/api/minutes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const newMin = await res.json();
+        setMinutes(prev => [newMin, ...prev]);
+        toast({ title: 'Minutes recorded' });
+        setMinuteDialog(false);
+        setMinuteForm({ title: '', attendees: '', summary: '' });
+      } else throw new Error();
+    } catch (err) { toast({ title: 'Failed to record minutes', variant: 'destructive' }); }
   };
 
-  const handleResolveComplaint = (c) => {
-    setComplaintList(prev => prev.map(x => x.id === c.id ? { ...x, status: 'Resolved' } : x));
-    toast({ title: 'Complaint resolved' });
+  const handleResolveComplaint = async (c) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/complaints/${c._id || c.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
+        body: JSON.stringify({ status: 'Resolved' })
+      });
+      if (res.ok) {
+        setComplaints(prev => prev.map(x => (x._id === c._id || x.id === c.id) ? { ...x, status: 'Resolved' } : x));
+        toast({ title: 'Complaint marked as resolved' });
+      } else throw new Error();
+    } catch (err) { toast({ title: 'Failed to update complaint', variant: 'destructive' }); }
   };
 
-  const handleApproveRequest = (r) => {
-    setRequestList(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Approved' } : x));
-    toast({ title: 'Request approved' });
-  };
-
-  const handleRejectRequest = (r) => {
-    setRequestList(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Rejected' } : x));
-    toast({ title: 'Request rejected' });
+  const handleRequestStatus = async (r, newStatus) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/requests/${r._id || r.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        setRequestList(prev => prev.map(x => (x._id === r._id || x.id === r.id) ? { ...x, status: newStatus } : x));
+        toast({ title: `Request ${newStatus}` });
+      } else throw new Error();
+    } catch (err) { toast({ title: 'Failed to update request', variant: 'destructive' }); }
   };
 
   const tabs = [
@@ -77,8 +151,9 @@ const GeneralSecretaryDashboard = () => {
     { id: 'complaints', label: 'Complaints', icon: AlertTriangle },
     { id: 'minutes', label: 'Meeting Minutes', icon: MessageSquare },
     { id: 'members', label: 'Members', icon: Users },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
   ];
+
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center', color: '#64748b' }}>Syncing General Secretary Workspace...</div>;
 
   return (
     <div className={styles.page}>
@@ -88,13 +163,17 @@ const GeneralSecretaryDashboard = () => {
             <div className={styles.headerLogo}><GraduationCap size={20} /></div>
             <div>
               <h1 className={styles.headerTitle}>General Secretary</h1>
-              <p className={styles.headerSub}>Welcome, {currentUser.name}</p>
+              <p className={styles.headerSub}>Welcome, {currentUser?.fullName || 'General Secretary'}</p>
             </div>
           </div>
           <div className={styles.headerRight}>
             <Badge variant="default">General Secretary</Badge>
-            <Button variant="outline" size="sm" onClick={() => navigate('/notifications')}><Bell size={14} /></Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/login')}><LogOut size={14} /> Logout</Button>
+            <TransferRoleWidget />
+            <Button variant="outline" size="sm" onClick={() => navigate('/notifications')} style={{ position: 'relative' }}>
+              <Bell size={14} />
+              {unreadNotifs > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50px', padding: '2px 5px', fontSize: '0.65rem', lineHeight: 1, fontWeight: 'bold' }}>{unreadNotifs}</span>}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login'); }}><LogOut size={14} /> Logout</Button>
           </div>
         </div>
       </header>
@@ -127,56 +206,58 @@ const GeneralSecretaryDashboard = () => {
                 </div>
                 <div className={styles.oStatCard}>
                   <Megaphone size={24} className={styles.oStatIcon} />
-                  <div><span className={styles.oStatNum}>{announcementList.length}</span><span className={styles.oStatLabel}>Announcements</span></div>
+                  <div><span className={styles.oStatNum}>{announcements.length}</span><span className={styles.oStatLabel}>Announcements</span></div>
                 </div>
               </div>
 
               <h3 className={styles.subTitle}>Recent Activity</h3>
               <div className={styles.activityList}>
-                {requestList.filter(r => r.status === 'Pending').slice(0, 3).map(r => (
-                  <div key={r.id} className={styles.activityItem}>
+                {requests.filter(r => r.status === 'Pending').slice(0, 3).map(r => (
+                  <div key={r._id || r.id} className={styles.activityItem}>
                     <FileText size={16} className={styles.activityIcon} />
                     <div className={styles.activityInfo}>
                       <span className={styles.bold}>{r.title}</span>
-                      <span className={styles.muted}>by {r.submittedBy} • {r.date}</span>
+                      <span className={styles.muted}>by {r.submittedBy || r.studentName} • {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : r.date}</span>
                     </div>
-                    <Badge variant="secondary">Pending</Badge>
+                    <Badge variant="secondary">Pending Request</Badge>
                   </div>
                 ))}
-                {complaintList.filter(c => c.status === 'Pending').slice(0, 2).map(c => (
-                  <div key={c.id} className={styles.activityItem}>
-                    <AlertTriangle size={16} className={styles.activityIcon} />
+                {complaints.filter(c => c.status === 'Pending').slice(0, 2).map(c => (
+                  <div key={c._id || c.id} className={styles.activityItem}>
+                    <AlertTriangle size={16} className={styles.activityIcon} style={{ color: '#ef4444' }} />
                     <div className={styles.activityInfo}>
                       <span className={styles.bold}>{c.title}</span>
-                      <span className={styles.muted}>by {c.submittedBy} • {c.date}</span>
+                      <span className={styles.muted}>by {c.submittedBy} • {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : c.date}</span>
                     </div>
                     <Badge variant="destructive">Complaint</Badge>
                   </div>
                 ))}
+                {requests.length === 0 && complaints.length === 0 && <p className={styles.muted}>No recent pending activities.</p>}
               </div>
             </div>
           )}
 
           {activeTab === 'announcements' && (
             <div>
-              <div className={styles.sectionHeader}>
+              <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <h2 className={styles.sectionTitle}>Announcements</h2>
-                <Button size="sm" onClick={() => setAnnDialog(true)}><Plus size={14} /> Post Announcement</Button>
+                <Button size="sm" onClick={() => setAnnDialog(true)}><Plus size={14} style={{ marginRight: '6px' }}/> Post Announcement</Button>
               </div>
-              <div className={styles.annGrid}>
-                {announcementList.map(a => (
-                  <div key={a.id} className={styles.annCard}>
-                    <div className={styles.annTop}>
-                      <h3 className={styles.annTitle}>{a.title}</h3>
+              <div className={styles.annGrid} style={{ display: 'grid', gap: '15px' }}>
+                {announcements.map(a => (
+                  <div key={a._id || a.id} className={styles.annCard} style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white' }}>
+                    <div className={styles.annTop} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <h3 className={styles.annTitle} style={{ margin: 0, fontWeight: 'bold' }}>{a.title}</h3>
                       {a.priority === 'Urgent' && <Badge variant="destructive">Urgent</Badge>}
                     </div>
-                    <p className={styles.annDesc}>{a.description}</p>
-                    <div className={styles.annMeta}>
-                      <span className={styles.muted}>{a.postedDate}</span>
-                      <span className={styles.muted}>By {a.postedBy}</span>
+                    <p className={styles.annDesc} style={{ color: '#475569', marginTop: '10px' }}>{a.description}</p>
+                    <div className={styles.annMeta} style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '10px' }}>
+                      <span style={{ marginRight: '15px' }}>{a.postedDate || (a.createdAt ? new Date(a.createdAt).toLocaleDateString() : '')}</span>
+                      <span>By {a.postedBy}</span>
                     </div>
                   </div>
                 ))}
+                {announcements.length === 0 && <p className={styles.muted}>No announcements posted.</p>}
               </div>
             </div>
           )}
@@ -186,25 +267,26 @@ const GeneralSecretaryDashboard = () => {
               <h2 className={styles.sectionTitle}>Member Requests</h2>
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
-                  <thead><tr><th>Title</th><th>Submitted By</th><th>Type</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>Title</th><th>Submitted By</th><th>Type</th><th>Date</th><th>Status</th><th style={{textAlign:'right'}}>Actions</th></tr></thead>
                   <tbody>
-                    {requestList.map(r => (
-                      <tr key={r.id}>
+                    {requests.map(r => (
+                      <tr key={r._id || r.id}>
                         <td className={styles.bold}>{r.title}</td>
-                        <td className={styles.muted}>{r.submittedBy}</td>
-                        <td><Badge variant="secondary">{r.type}</Badge></td>
-                        <td className={styles.muted}>{r.date}</td>
+                        <td className={styles.muted}>{r.submittedBy || r.studentName}</td>
+                        <td><Badge variant="outline">{r.type}</Badge></td>
+                        <td className={styles.muted}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : r.date}</td>
                         <td><Badge variant={r.status === 'Approved' ? 'default' : r.status === 'Rejected' ? 'destructive' : 'secondary'}>{r.status}</Badge></td>
-                        <td>
+                        <td style={{textAlign:'right'}}>
                           {r.status === 'Pending' && (
-                            <div className={styles.actionBtns}>
-                              <Button size="sm" onClick={() => handleApproveRequest(r)}>Approve</Button>
-                              <Button variant="destructive" size="sm" onClick={() => handleRejectRequest(r)}>Reject</Button>
+                            <div className={styles.actionBtns} style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                              <Button size="sm" onClick={() => handleRequestStatus(r, 'Approved')}>Approve</Button>
+                              <Button variant="destructive" size="sm" onClick={() => handleRequestStatus(r, 'Rejected')}>Reject</Button>
                             </div>
                           )}
                         </td>
                       </tr>
                     ))}
+                    {requests.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No requests found.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -214,43 +296,45 @@ const GeneralSecretaryDashboard = () => {
           {activeTab === 'complaints' && (
             <div>
               <h2 className={styles.sectionTitle}>Complaints</h2>
-              <div className={styles.complaintGrid}>
-                {complaintList.map(c => (
-                  <div key={c.id} className={styles.complaintCard}>
-                    <div className={styles.complaintTop}>
-                      <h3 className={styles.complaintTitle}>{c.title}</h3>
+              <div className={styles.complaintGrid} style={{ display: 'grid', gap: '15px' }}>
+                {complaints.map(c => (
+                  <div key={c._id || c.id} className={styles.complaintCard} style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white' }}>
+                    <div className={styles.complaintTop} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <h3 className={styles.complaintTitle} style={{ margin: 0, fontWeight: 'bold' }}>{c.title}</h3>
                       <Badge variant={c.status === 'Resolved' ? 'default' : c.status === 'In Progress' ? 'secondary' : 'destructive'}>{c.status}</Badge>
                     </div>
-                    <p className={styles.muted}>{c.description}</p>
-                    <div className={styles.complaintMeta}>
-                      <span className={styles.muted}>By {c.submittedBy} • {c.date}</span>
+                    <p className={styles.muted} style={{ margin: '0 0 10px 0' }}>{c.description}</p>
+                    <div className={styles.complaintMeta} style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '15px', alignItems: 'center' }}>
+                      <span>By {c.submittedBy} • {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : c.date}</span>
                       <Badge variant="outline">{c.category}</Badge>
                     </div>
-                    {c.response && <div className={styles.complaintResponse}><strong>Response:</strong> {c.response}</div>}
-                    {c.status === 'Pending' && <Button size="sm" onClick={() => handleResolveComplaint(c)} className={styles.resolveBtn}>Mark Resolved</Button>}
+                    {c.response && <div className={styles.complaintResponse} style={{ marginTop: '10px', padding: '10px', background: '#f8fafc', borderRadius: '4px' }}><strong>Response:</strong> {c.response}</div>}
+                    {c.status === 'Pending' && <Button size="sm" onClick={() => handleResolveComplaint(c)} style={{ marginTop: '10px' }}>Mark Resolved</Button>}
                   </div>
                 ))}
+                {complaints.length === 0 && <p className={styles.muted}>No complaints submitted.</p>}
               </div>
             </div>
           )}
 
           {activeTab === 'minutes' && (
             <div>
-              <div className={styles.sectionHeader}>
+              <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <h2 className={styles.sectionTitle}>Meeting Minutes</h2>
-                <Button size="sm" onClick={() => setMinuteDialog(true)}><Plus size={14} /> Add Minutes</Button>
+                <Button size="sm" onClick={() => setMinuteDialog(true)}><Plus size={14} style={{ marginRight: '6px' }} /> Add Minutes</Button>
               </div>
-              <div className={styles.minutesList}>
+              <div className={styles.minutesList} style={{ display: 'grid', gap: '15px' }}>
                 {minutes.map(m => (
-                  <div key={m.id} className={styles.minuteCard}>
-                    <div className={styles.minuteTop}>
-                      <h3 className={styles.minuteTitle}>{m.title}</h3>
-                      <span className={styles.muted}>{m.date}</span>
+                  <div key={m._id || m.id} className={styles.minuteCard} style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white' }}>
+                    <div className={styles.minuteTop} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <h3 className={styles.minuteTitle} style={{ margin: 0, fontWeight: 'bold' }}>{m.title}</h3>
+                      <span className={styles.muted}>{m.createdAt ? new Date(m.createdAt).toLocaleDateString() : m.date}</span>
                     </div>
-                    <p className={styles.muted}>{m.summary}</p>
-                    <span className={styles.minuteAttendees}><UserCheck size={14} /> {m.attendees} attendees</span>
+                    <p className={styles.muted} style={{ margin: '10px 0' }}>{m.summary}</p>
+                    <span className={styles.minuteAttendees} style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}><UserCheck size={14} /> {m.attendees} attendees</span>
                   </div>
                 ))}
+                {minutes.length === 0 && <p className={styles.muted}>No meeting minutes recorded yet.</p>}
               </div>
             </div>
           )}
@@ -260,38 +344,20 @@ const GeneralSecretaryDashboard = () => {
               <h2 className={styles.sectionTitle}>Society Members</h2>
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
-                  <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Class</th><th>Status</th><th>Events</th></tr></thead>
+                  <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Dept/Class</th><th>Status</th></tr></thead>
                   <tbody>
                     {members.map(m => (
-                      <tr key={m.id}>
-                        <td className={styles.bold}>{m.name}</td>
+                      <tr key={m._id || m.id}>
+                        <td className={styles.bold}>{m.fullName || m.name}</td>
                         <td className={styles.muted}>{m.email}</td>
                         <td><Badge variant="secondary">{m.role}</Badge></td>
-                        <td className={styles.muted}>{m.class}</td>
-                        <td><Badge variant={m.status === 'Active' ? 'default' : 'secondary'}>{m.status}</Badge></td>
-                        <td>{m.eventsCount}</td>
+                        <td className={styles.muted}>{m.department || m.class || 'N/A'}</td>
+                        <td><Badge variant={m.isActive ? 'default' : 'secondary'}>{m.isActive ? 'Active' : 'Pending'}</Badge></td>
                       </tr>
                     ))}
+                    {members.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>No members found.</td></tr>}
                   </tbody>
                 </table>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'notifications' && (
-            <div>
-              <h2 className={styles.sectionTitle}>Notifications</h2>
-              <div className={styles.notifList}>
-                {notifs.map(n => (
-                  <div key={n.id} className={`${styles.notifItem} ${!n.read ? styles.notifUnread : ''}`}>
-                    <div className={styles.notifDot} />
-                    <div className={styles.notifContent}>
-                      <h4 className={styles.notifTitle}>{n.title}</h4>
-                      <p className={styles.muted}>{n.message}</p>
-                      <span className={styles.notifDate}>{n.date}</span>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           )}
@@ -300,7 +366,7 @@ const GeneralSecretaryDashboard = () => {
 
       {/* Announcement Modal */}
       <Modal open={annDialog} onClose={() => setAnnDialog(false)} title="Post Announcement"
-        footer={<><Button variant="outline" onClick={() => setAnnDialog(false)}>Cancel</Button><Button onClick={handleAddAnnouncement}><Send size={14} /> Post</Button></>}>
+        footer={<><Button variant="outline" onClick={() => setAnnDialog(false)}>Cancel</Button><Button onClick={handleAddAnnouncement}><Send size={14} style={{ marginRight: '6px' }} /> Post</Button></>}>
         <div className={styles.formFields}>
           <div className={styles.field}><label>Title *</label><Input value={annForm.title} onChange={e => setAnnForm(p => ({ ...p, title: e.target.value }))} placeholder="Announcement title" /></div>
           <div className={styles.field}><label>Priority</label><Select value={annForm.priority} onChange={e => setAnnForm(p => ({ ...p, priority: e.target.value }))}>
@@ -312,7 +378,7 @@ const GeneralSecretaryDashboard = () => {
 
       {/* Meeting Minutes Modal */}
       <Modal open={minuteDialog} onClose={() => setMinuteDialog(false)} title="Record Meeting Minutes"
-        footer={<><Button variant="outline" onClick={() => setMinuteDialog(false)}>Cancel</Button><Button onClick={handleAddMinute}><Send size={14} /> Save</Button></>}>
+        footer={<><Button variant="outline" onClick={() => setMinuteDialog(false)}>Cancel</Button><Button onClick={handleAddMinute}><Send size={14} style={{ marginRight: '6px' }} /> Save</Button></>}>
         <div className={styles.formFields}>
           <div className={styles.field}><label>Meeting Title *</label><Input value={minuteForm.title} onChange={e => setMinuteForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Weekly Sync" /></div>
           <div className={styles.field}><label>Attendees Count</label><Input type="number" value={minuteForm.attendees} onChange={e => setMinuteForm(p => ({ ...p, attendees: e.target.value }))} placeholder="Number of attendees" /></div>

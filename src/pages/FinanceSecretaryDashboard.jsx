@@ -3,62 +3,79 @@ import { useNavigate } from 'react-router-dom';
 import { 
   GraduationCap, Wallet, Receipt, TrendingUp, TrendingDown, 
   Bell, LogOut, Plus, Send, PieChart, FileText, DollarSign, 
-  CreditCard, BarChart3, Image as ImageIcon, Trash2, Eye 
+  CreditCard, Image as ImageIcon, Trash2, Eye 
 } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import Modal from '@/components/ui/Modal.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Select from '@/components/ui/Select.jsx';
-import { funds as initialFunds, notifications as initialNotifications } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
+import { useAuth } from '@/context/AuthContext.jsx';
 import styles from './FinanceSecretaryDashboard.module.css';
-
-const currentUser = { name: 'Ayesha Malik', role: 'Finance Secretary' };
 
 const FinanceSecretaryDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: currentUser, logout } = useAuth(); // 🔴 LIVE USER AUTH
+  
   const [activeTab, setActiveTab] = useState('overview');
   
-  // --- STATE ---
-  const [fundList, setFundList] = useState(initialFunds); // Still mock data for now
-  const [expenseList, setExpenseList] = useState([]); // REAL DATA state
-  const [notifs] = useState(initialNotifications);
+  // --- 🔴 LIVE DATABASE STATES ---
+  const [fundList, setFundList] = useState([]); 
+  const [expenseList, setExpenseList] = useState([]); 
+  const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // --- DIALOGS ---
-  const [fundDialog, setFundDialog] = useState(false);
-  const [fundForm, setFundForm] = useState({ memberName: '', class: '', amount: '', status: 'Paid' });
-
   const [expenseDialog, setExpenseDialog] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ 
     title: '', category: '', amount: '', receiptName: '', receiptData: '' 
   });
-  const [previewReceipt, setPreviewReceipt] = useState(null); // For viewing uploaded receipts
+  const [previewReceipt, setPreviewReceipt] = useState(null); 
 
-  // --- FETCH EXPENSES FROM MONGODB ---
-  const fetchExpenses = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/expenses');
-      if (res.ok) {
-        const data = await res.json();
-        setExpenseList(data);
-      }
-    } catch (error) {
-      toast({ title: 'Failed to fetch expenses', variant: 'destructive' });
-    }
-  };
-
+  // --- 🔴 FETCH REAL DATA FROM MONGODB ---
   useEffect(() => {
-    fetchExpenses();
-  }, []);
+    const fetchFinanceData = async () => {
+      const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
 
-  // --- CALCULATIONS ---
-  const totalFunds = fundList.filter(f => f.status === 'Paid').reduce((s, f) => s + f.amount, 0);
-  const totalExpenses = expenseList.reduce((s, e) => s + e.amount, 0);
+      try {
+        // Fetch Live Expenses
+        const expRes = await fetch('http://localhost:5000/api/expenses/records', { headers });
+        if (expRes.ok) setExpenseList(await expRes.json());
+
+        // Fetch Live Funds (Collected by CRs and Admin)
+        const fundRes = await fetch('http://localhost:5000/api/fund-collections/records', { headers });
+        if (fundRes.ok) setFundList(await fundRes.json());
+
+        // Fetch Notifications
+        const notifRes = await fetch('http://localhost:5000/api/notifications', { headers });
+        if (notifRes.ok) {
+          const fetchedNotifs = await notifRes.json();
+          // Filter out private notifications meant for others
+          const validNotifs = fetchedNotifs.filter(n => !n.targetUser || n.targetUser === currentUser?.fullName);
+          setNotifs(validNotifs);
+        }
+      } catch (error) {
+        console.error('Failed to fetch finance data:', error);
+      }
+    };
+
+    fetchFinanceData();
+  }, [currentUser]);
+
+  // --- CALCULATIONS (Now using REAL Live Math) ---
+  const totalFunds = fundList.filter(f => f.status === 'Paid').reduce((s, f) => s + (Number(f.amount) || 0), 0);
+  const totalExpenses = expenseList.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const balance = totalFunds - totalExpenses;
-  const pendingFunds = fundList.filter(f => f.status === 'Unpaid').reduce((s, f) => s + f.amount, 0);
+  // Summing up expected amounts from people who haven't paid or partially paid
+  const pendingFunds = fundList.filter(f => f.status === 'Unpaid' || f.status === 'Pending').reduce((s, f) => s + (Number(f.amount) || 0), 0);
+  const unreadNotifs = notifs.filter(n => !n.read).length;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   // --- UTILITY: CONVERT IMAGE TO BASE64 ---
   const convertToBase64 = (file) => {
@@ -73,7 +90,6 @@ const FinanceSecretaryDashboard = () => {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Check file size (e.g., limit to 2MB to prevent MongoDB document size limits)
       if (file.size > 2 * 1024 * 1024) {
         toast({ title: 'File too large', description: 'Please upload an image under 2MB', variant: 'destructive' });
         return;
@@ -90,6 +106,11 @@ const FinanceSecretaryDashboard = () => {
       return; 
     }
 
+    if (Number(expenseForm.amount) > balance) {
+      toast({ title: 'Insufficient Funds', description: `The treasury only has Rs ${balance.toLocaleString()} available.`, variant: 'destructive' });
+      return;
+    }
+
     setLoading(true);
     const newExpenseData = {
       title: expenseForm.title,
@@ -101,16 +122,16 @@ const FinanceSecretaryDashboard = () => {
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/expenses', {
+      const res = await fetch('http://localhost:5000/api/expenses/record', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify(newExpenseData)
       });
 
       if (res.ok) {
         const savedExpense = await res.json();
         setExpenseList(prev => [savedExpense, ...prev]);
-        toast({ title: 'Expense recorded successfully!' });
+        toast({ title: 'Expense recorded successfully!', description: `Rs ${newExpenseData.amount.toLocaleString()} deducted from treasury.` });
         setExpenseDialog(false);
         setExpenseForm({ title: '', category: '', amount: '', receiptName: '', receiptData: '' });
       } else {
@@ -124,14 +145,17 @@ const FinanceSecretaryDashboard = () => {
   };
 
   // --- DELETE REAL EXPENSE ---
-  const handleDeleteExpense = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this expense?")) return;
+  const handleDeleteExpense = async (id, amount) => {
+    if (!window.confirm(`Are you sure you want to delete this expense? Rs ${amount.toLocaleString()} will be refunded to the treasury.`)) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/expenses/${id}`, { method: 'DELETE' });
+      const res = await fetch(`http://localhost:5000/api/expenses/record/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
+      });
       if (res.ok) {
         setExpenseList(prev => prev.filter(e => e._id !== id));
-        toast({ title: 'Expense deleted' });
+        toast({ title: 'Expense deleted and funds refunded' });
       }
     } catch (error) {
       toast({ title: 'Failed to delete expense', variant: 'destructive' });
@@ -142,11 +166,10 @@ const FinanceSecretaryDashboard = () => {
     { id: 'overview', label: 'Overview', icon: PieChart },
     { id: 'funds', label: 'Fund Records', icon: Wallet },
     { id: 'expenses', label: 'Expenses (Live)', icon: Receipt },
-    { id: 'reports', label: 'Reports', icon: FileText },
   ];
 
   const expenseByCategory = expenseList.reduce((acc, e) => { 
-    acc[e.category] = (acc[e.category] || 0) + e.amount; return acc; 
+    acc[e.category] = (acc[e.category] || 0) + (Number(e.amount) || 0); return acc; 
   }, {});
 
   return (
@@ -157,13 +180,16 @@ const FinanceSecretaryDashboard = () => {
             <div className={styles.headerLogo}><GraduationCap size={20} /></div>
             <div>
               <h1 className={styles.headerTitle}>Finance Secretary</h1>
-              <p className={styles.headerSub}>Welcome, {currentUser.name}</p>
+              <p className={styles.headerSub}>Welcome, {currentUser?.fullName || 'Secretary'}</p>
             </div>
           </div>
           <div className={styles.headerRight}>
             <Badge variant="default">Finance Secretary</Badge>
-            <Button variant="outline" size="sm" onClick={() => navigate('/notifications')}><Bell size={14} /></Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/login')}><LogOut size={14} /> Logout</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/notifications')} style={{ position: 'relative' }}>
+              <Bell size={14} />
+              {unreadNotifs > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50px', padding: '2px 5px', fontSize: '0.65rem', lineHeight: 1, fontWeight: 'bold', border: '2px solid white' }}>{unreadNotifs}</span>}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleLogout}><LogOut size={14} /> Logout</Button>
           </div>
         </div>
       </header>
@@ -206,7 +232,7 @@ const FinanceSecretaryDashboard = () => {
                 <div className={`${styles.statCard} ${styles.statYellow}`}>
                   <div className={styles.statIcon}><CreditCard size={20} /></div>
                   <div className={styles.statInfo}>
-                    <span className={styles.statLabel}>Pending Dues</span>
+                    <span className={styles.statLabel}>Expected / Arrears</span>
                     <span className={styles.statValue}>Rs {pendingFunds.toLocaleString()}</span>
                   </div>
                 </div>
@@ -216,7 +242,7 @@ const FinanceSecretaryDashboard = () => {
                 <div className={styles.overviewCard}>
                   <h3 className={styles.cardTitle}>Expense Breakdown</h3>
                   <div className={styles.breakdownList}>
-                    {Object.entries(expenseByCategory).map(([cat, amt]) => (
+                    {Object.entries(expenseByCategory).length > 0 ? Object.entries(expenseByCategory).map(([cat, amt]) => (
                       <div key={cat} className={styles.breakdownRow}>
                         <span className={styles.breakdownLabel}>{cat}</span>
                         <span className={styles.breakdownValue}>Rs {amt.toLocaleString()}</span>
@@ -224,19 +250,64 @@ const FinanceSecretaryDashboard = () => {
                           <div className={styles.breakdownFill} style={{ width: `${(amt / totalExpenses) * 100}%` }} />
                         </div>
                       </div>
-                    ))}
+                    )) : <p style={{ color: '#64748b', fontSize: '0.9rem' }}>No expenses recorded yet.</p>}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {activeTab === 'expenses' && (
+          {/* 🔴 NEW: FUNDS TAB LOGIC TO SEE CR COLLECTIONS */}
+          {activeTab === 'funds' && (
             <div>
               <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Expense Records (Live)</h2>
-                <Button size="sm" onClick={() => setExpenseDialog(true)}><Plus size={14} /> Add Expense</Button>
+                <h2 className={styles.sectionTitle}>All Fund Records</h2>
+                <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>View all funds collected by Class Representatives and the President.</p>
               </div>
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Student Name</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                      <th>Collected By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fundList.length > 0 ? fundList.map(f => (
+                      <tr key={f._id}>
+                        <td className={styles.bold}>
+                          {f.studentName}
+                          <div className={styles.muted} style={{ fontSize: '0.75rem' }}>{f.department} {f.rollNo ? `(${f.rollNo})` : ''}</div>
+                        </td>
+                        <td className={styles.bold}>Rs {f.amount?.toLocaleString() || 0}</td>
+                        <td><Badge variant={f.status === 'Paid' ? 'success' : 'warning'}>{f.status}</Badge></td>
+                        <td className={styles.muted}>{f.date ? new Date(f.date).toLocaleDateString() : '—'}</td>
+                        <td><Badge variant="outline">{f.uploadedBy || 'System'}</Badge></td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={5} className={styles.empty} style={{ textAlign: 'center', padding: '30px' }}>No fund records found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'expenses' && (
+            <div>
+              <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 className={styles.sectionTitle}>Expense Records (Live)</h2>
+                <Button size="sm" onClick={() => setExpenseDialog(true)}><Plus size={14} style={{ marginRight: '6px' }}/> Add Expense</Button>
+              </div>
+              
+              {/* Overdraft Warning Banner */}
+              <div style={{ padding: '10px 15px', backgroundColor: '#eff6ff', borderLeft: '4px solid var(--primary)', borderRadius: '6px', marginBottom: '15px', fontSize: '0.85rem' }}>
+                <strong>Available Treasury Balance:</strong> Rs {balance.toLocaleString()}
+              </div>
+
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
@@ -246,7 +317,7 @@ const FinanceSecretaryDashboard = () => {
                       <th>Amount</th>
                       <th>Date</th>
                       <th>Receipt</th>
-                      <th>Actions</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -254,25 +325,25 @@ const FinanceSecretaryDashboard = () => {
                       <tr key={e._id}>
                         <td className={styles.bold}>{e.title}</td>
                         <td><Badge variant="secondary">{e.category}</Badge></td>
-                        <td>Rs {e.amount?.toLocaleString()}</td>
-                        <td className={styles.muted}>{e.date || new Date(e.createdAt).toLocaleDateString()}</td>
+                        <td style={{ color: '#ef4444', fontWeight: 'bold' }}>- Rs {e.amount?.toLocaleString()}</td>
+                        <td className={styles.muted}>{e.date ? new Date(e.date).toLocaleDateString() : new Date(e.createdAt).toLocaleDateString()}</td>
                         <td>
                           {e.receiptData ? (
-                            <Button variant="ghost" size="sm" onClick={() => setPreviewReceipt({ name: e.receiptName, data: e.receiptData })}>
-                              <Eye size={16} color="var(--primary)" /> View
+                            <Button variant="outline" size="sm" onClick={() => setPreviewReceipt({ name: e.receiptName, data: e.receiptData })}>
+                              <Eye size={14} style={{ marginRight: '4px' }} /> View
                             </Button>
                           ) : (
-                            <span className={styles.muted}>No receipt</span>
+                            <span className={styles.muted}>—</span>
                           )}
                         </td>
-                        <td>
-                          <Button variant="destructive" size="sm" onClick={() => handleDeleteExpense(e._id)}>
-                            <Trash2 size={14} />
+                        <td style={{ textAlign: 'right' }}>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteExpense(e._id, e.amount)}>
+                            <Trash2 size={16} color="var(--destructive)" />
                           </Button>
                         </td>
                       </tr>
                     )) : (
-                      <tr><td colSpan={6} className={styles.empty}>No expenses recorded yet.</td></tr>
+                      <tr><td colSpan={6} className={styles.empty} style={{ textAlign: 'center', padding: '30px' }}>No expenses recorded yet.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -284,7 +355,7 @@ const FinanceSecretaryDashboard = () => {
 
       {/* ADD EXPENSE MODAL */}
       <Modal open={expenseDialog} onClose={() => setExpenseDialog(false)} title="Record Expense"
-        footer={<><Button variant="outline" onClick={() => setExpenseDialog(false)}>Cancel</Button><Button onClick={handleAddExpense} disabled={loading}>{loading ? 'Saving...' : <><Send size={14} /> Save Expense</>}</Button></>}>
+        footer={<><Button variant="outline" onClick={() => setExpenseDialog(false)}>Cancel</Button><Button onClick={handleAddExpense} disabled={loading}>{loading ? 'Saving...' : <><Send size={14} style={{ marginRight: '6px' }} /> Record Expense</>}</Button></>}>
         <div className={styles.formFields}>
           <div className={styles.field}>
             <label>Title *</label>

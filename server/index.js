@@ -20,7 +20,11 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const settingRoutes = require('./routes/settingsRoutes');
 const studentRoutes = require('./routes/studentRoutes');
+const studentFundRoutes = require('./routes/studentfundRoutes'); // 🔴 NEW: Imported Student Fund Routes
 const societyRoutes = require('./routes/societyRoutes');
+const activityRoutes = require('./routes/activityRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const contributionRoutes = require('./routes/contributionRoutes');
 
 const app = express();
 
@@ -28,6 +32,11 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// 🔴 AUTO-LOGGER MUST GO HERE! 
+// (After express.json so it can read data, but BEFORE your routes)
+const autoLogger = require('./middleware/autoLogger');
+app.use(autoLogger);
 
 // --- BOOTSTRAP FUNCTION ---
 const bootstrapAdmin = async () => {
@@ -45,15 +54,15 @@ const bootstrapAdmin = async () => {
         if (!adminExists) {
             console.log("🚀 Creating Master Admin with Custom Details...");
             const masterAdmin = new User({
-                fullName: process.env.MASTER_ADMIN_NAME || "Society President", // <--- UPDATED
+                fullName: process.env.MASTER_ADMIN_NAME || "Society President",
                 email: adminEmail,
                 password: process.env.MASTER_ADMIN_PASSWORD,
-                phone: process.env.MASTER_ADMIN_PHONE || "0000000000", // <--- UPDATED
-                department: process.env.MASTER_ADMIN_DEPT || "Management", // <--- UPDATED
-                semester: process.env.MASTER_ADMIN_SEMESTER || "N/A", // <--- UPDATED
-                rollNo: process.env.MASTER_ADMIN_ROLLNO || "ADMIN-01", // <--- UPDATED
-                timing: process.env.MASTER_ADMIN_TIMING || "Morning", // <--- UPDATED
-                role: "Admin",
+                phone: process.env.MASTER_ADMIN_PHONE || "0000000000",
+                department: process.env.MASTER_ADMIN_DEPT || "Management",
+                semester: process.env.MASTER_ADMIN_SEMESTER || "N/A",
+                rollNo: process.env.MASTER_ADMIN_ROLLNO || "ADMIN-01",
+                timing: process.env.MASTER_ADMIN_TIMING || "Morning",
+                role: "President",
                 isActive: true,
                 isApproved: true,
                 membershipId: "ADMIN-001"
@@ -72,7 +81,6 @@ const bootstrapAdmin = async () => {
 mongoose.connect(process.env.MONGO_URI)
     .then(async () => {
         console.log("✅ Connected to Database");
-        // We call the bootstrap here to ensure DB is ready
         await bootstrapAdmin();
     })
     .catch((err) => console.log("❌ Database connection error:", err));
@@ -90,8 +98,14 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/settings', settingRoutes);
-app.use('/api/students', studentRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/contributions', contributionRoutes);
+// 🔴 MOUNTED BOTH STUDENT ROUTES TO THE SAME BASE PATH
+app.use('/api/students', studentRoutes); 
+app.use('/api/students', studentFundRoutes); 
+
 app.use('/api', societyRoutes);
+app.use('/api/activities', activityRoutes);
 
 // --- START SERVER ---
 const PORT = process.env.PORT || 5000;

@@ -32,6 +32,7 @@ import Participants from '../src/pages/Participants.jsx';
 import Chat from '../src/pages/Chat.jsx';
 import Notifications from '../src/pages/Notifications.jsx';
 import StudentManagement from '../src/pages/StudentManagement.jsx';
+import ActivityLog from '../src/pages/ActivityLog.jsx';
 
 // Role-Specific
 import CRDashboard from '../src/pages/CRDashboard.jsx';
@@ -42,6 +43,7 @@ import EventManagerDashboard from '../src/pages/EventManagerDashboard.jsx'; // K
 import FinanceSecretaryDashboard from '../src/pages/FinanceSecretaryDashboard.jsx';
 import MediaPRDashboard from '../src/pages/MediaPRDashboard.jsx';
 import GeneralSecretary from '../src/pages/GeneralSecretaryDashboard.jsx';
+import FinanceDashboard from '../src/pages/FinanceDashboard.jsx';
 
 const App = () => (
   <ToastProvider>
@@ -74,7 +76,7 @@ const App = () => (
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['Finance Head', 'President']} />}>
-              <Route path="/finance-dashboard" element={<FinanceSecretaryDashboard />} />
+              <Route path="/finance-dashboard" element={<FinanceDashboard />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['Assistant Finance Head', 'President']} />}>
@@ -111,6 +113,7 @@ const App = () => (
                 <Route path="reports" element={<Reports />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="studentmanagement" element={<StudentManagement />} />
+                <Route path="activity-log" element={<ActivityLog />} />
               </Route>
             </Route>
 

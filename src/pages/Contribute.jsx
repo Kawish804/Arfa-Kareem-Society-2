@@ -1,92 +1,130 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CreditCard, Lock, CheckCircle, ArrowLeft, Shield } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { CreditCard, Lock, CheckCircle, ArrowLeft, Shield, XCircle } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
 import Select from '@/components/ui/Select.jsx';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
+import { useAuth } from '@/context/AuthContext.jsx';
 import styles from './Contribute.module.css';
 
 const Contribute = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const [step, setStep] = useState('amount'); // amount | payment | success
+  const { user: currentUser } = useAuth();
+
+  const [step, setStep] = useState('amount');
   const [amount, setAmount] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [purpose, setPurpose] = useState('');
-  const [card, setCard] = useState({ name: '', number: '', expiry: '', cvv: '' });
   const [processing, setProcessing] = useState(false);
+
+  // States for the success screen
+  const [successAmount, setSuccessAmount] = useState('');
+  const [successPurpose, setSuccessPurpose] = useState('');
 
   const presetAmounts = [500, 1000, 2000, 5000, 10000];
   const selectedAmount = amount === 'custom' ? Number(customAmount) : Number(amount);
 
-  const formatCardNumber = (val) => {
-    const digits = val.replace(/\D/g, '').slice(0, 16);
-    return digits.replace(/(.{4})/g, '$1 ').trim();
+  // 🔴 CHECK STRIPE REDIRECT RESULTS ON PAGE LOAD
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+
+    if (query.get('status') === 'success') {
+      const amt = query.get('amount');
+      const purp = query.get('purpose');
+
+      setSuccessAmount(amt);
+      setSuccessPurpose(purp);
+      setStep('success');
+
+      // Save to database secretly in the background
+      recordPaymentToDatabase(amt, purp);
+
+      // Clean up the URL so if they refresh, it doesn't trigger again
+      window.history.replaceState(null, '', '/dashboard/contribute');
+    }
+
+    if (query.get('status') === 'cancelled') {
+      toast({ title: 'Payment Cancelled', description: 'You cancelled the checkout process.', variant: 'destructive' });
+      window.history.replaceState(null, '', '/dashboard/contribute');
+    }
+  }, [location]);
+
+  const recordPaymentToDatabase = async (paidAmount, paidPurpose) => {
+    try {
+      const generatedTxnId = `TXN-${Date.now().toString().slice(-8).toUpperCase()}`;
+
+      const payload = {
+        studentName: currentUser?.fullName || 'Anonymous Contributor',
+        email: currentUser?.email || 'N/A',
+        department: currentUser?.department || 'N/A',
+        rollNo: currentUser?.rollNo || 'N/A',
+        amount: Number(paidAmount),
+        purpose: paidPurpose,
+        transactionId: generatedTxnId
+      };
+
+      // 🔴 Send data to the new dedicated Contributions endpoint
+      await fetch('http://localhost:5000/api/contributions/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
+        body: JSON.stringify(payload)
+      });
+
+    } catch (err) {
+      console.error('Failed to log payment to DB', err);
+    }
   };
 
-  const formatExpiry = (val) => {
-    const digits = val.replace(/\D/g, '').slice(0, 4);
-    if (digits.length >= 3) return digits.slice(0, 2) + '/' + digits.slice(2);
-    return digits;
-  };
-
-  const handleProceed = () => {
+  // 🔴 REDIRECT TO STRIPE
+  const handleProceedToStripe = async () => {
     if (!selectedAmount || selectedAmount <= 0) {
-      toast({ title: 'Please select or enter an amount', variant: 'destructive' }); return;
+      toast({ title: 'Please select an amount', variant: 'destructive' }); return;
     }
     if (!purpose) {
       toast({ title: 'Please select a purpose', variant: 'destructive' }); return;
     }
-    setStep('payment');
-  };
 
-  const handlePay = () => {
-    if (!card.name || !card.number || !card.expiry || !card.cvv) {
-      toast({ title: 'Please fill all card details', variant: 'destructive' }); return;
-    }
-    if (card.number.replace(/\s/g, '').length < 16) {
-      toast({ title: 'Please enter a valid card number', variant: 'destructive' }); return;
-    }
-    if (card.cvv.length < 3) {
-      toast({ title: 'Please enter a valid CVV', variant: 'destructive' }); return;
-    }
     setProcessing(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('http://localhost:5000/api/payments/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
+        body: JSON.stringify({
+          amount: selectedAmount,
+          purpose: purpose,
+          studentName: currentUser?.fullName || 'Anonymous',
+          department: currentUser?.department || 'N/A',
+          rollNo: currentUser?.rollNo || 'N/A'
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.url) {
+        // Redirect the user to Stripe's secure page!
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'Failed to initialize payment');
+      }
+    } catch (error) {
+      toast({ title: 'Gateway Error', description: error.message, variant: 'destructive' });
       setProcessing(false);
-      setStep('success');
-    }, 2000);
+    }
   };
 
   return (
     <div className={styles.page}>
       <nav className={styles.topBar}>
-        <button className={styles.backBtn} onClick={() => step === 'payment' ? setStep('amount') : navigate(-1)}>
+        <button className={styles.backBtn} onClick={() => navigate(-1)}>
           <ArrowLeft size={18} /> Back
         </button>
-        <div className={styles.secureBadge}><Lock size={14} /> Secure Payment</div>
+        <div className={styles.secureBadge}><Lock size={14} /> Stripe Secure Checkout</div>
       </nav>
 
       <div className={styles.container}>
-        {/* Progress Steps */}
-        <div className={styles.progress}>
-          <div className={`${styles.progressStep} ${step === 'amount' || step === 'payment' || step === 'success' ? styles.active : ''}`}>
-            <div className={styles.stepCircle}>1</div>
-            <span>Amount</span>
-          </div>
-          <div className={styles.progressLine} />
-          <div className={`${styles.progressStep} ${step === 'payment' || step === 'success' ? styles.active : ''}`}>
-            <div className={styles.stepCircle}>2</div>
-            <span>Payment</span>
-          </div>
-          <div className={styles.progressLine} />
-          <div className={`${styles.progressStep} ${step === 'success' ? styles.active : ''}`}>
-            <div className={styles.stepCircle}>3</div>
-            <span>Done</span>
-          </div>
-        </div>
-
-        {/* Step 1: Amount Selection */}
         {step === 'amount' && (
           <div className={styles.card}>
             <h1 className={styles.cardTitle}>Contribute to the Society</h1>
@@ -96,13 +134,11 @@ const Contribute = () => {
               <label>Select Amount (Rs)</label>
               <div className={styles.amountGrid}>
                 {presetAmounts.map(a => (
-                  <button key={a} className={`${styles.amountBtn} ${amount === String(a) ? styles.amountActive : ''}`}
-                    onClick={() => { setAmount(String(a)); setCustomAmount(''); }}>
+                  <button key={a} className={`${styles.amountBtn} ${amount === String(a) ? styles.amountActive : ''}`} onClick={() => { setAmount(String(a)); setCustomAmount(''); }}>
                     Rs {a.toLocaleString()}
                   </button>
                 ))}
-                <button className={`${styles.amountBtn} ${amount === 'custom' ? styles.amountActive : ''}`}
-                  onClick={() => setAmount('custom')}>
+                <button className={`${styles.amountBtn} ${amount === 'custom' ? styles.amountActive : ''}`} onClick={() => setAmount('custom')}>
                   Custom
                 </button>
               </div>
@@ -111,8 +147,7 @@ const Contribute = () => {
             {amount === 'custom' && (
               <div className={styles.field}>
                 <label>Enter Custom Amount (Rs)</label>
-                <Input type="number" placeholder="Enter amount" value={customAmount}
-                  onChange={e => setCustomAmount(e.target.value)} />
+                <Input type="number" placeholder="Enter amount" value={customAmount} onChange={e => setCustomAmount(e.target.value)} />
               </div>
             )}
 
@@ -128,96 +163,36 @@ const Contribute = () => {
               </Select>
             </div>
 
-            {selectedAmount > 0 && (
-              <div className={styles.summary}>
-                <div className={styles.summaryRow}><span>Contribution</span><span>Rs {selectedAmount.toLocaleString()}</span></div>
-                <div className={styles.summaryRow}><span>Purpose</span><span>{purpose || '—'}</span></div>
-                <div className={styles.summaryTotal}><span>Total</span><span>Rs {selectedAmount.toLocaleString()}</span></div>
-              </div>
-            )}
-
-            <Button size="lg" onClick={handleProceed} className={styles.fullBtn}>
-              Proceed to Payment <CreditCard size={16} />
+            <Button size="lg" onClick={handleProceedToStripe} disabled={processing} className={styles.fullBtn}>
+              {processing ? 'Connecting to Secure Gateway...' : `Proceed to Pay Rs ${selectedAmount.toLocaleString()}`} <CreditCard size={16} />
             </Button>
+
+            <div className={styles.trustBadges} style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '15px', color: '#64748b', fontSize: '0.8rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Lock size={14} /> SSL Encrypted</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Shield size={14} /> Stripe Secure</span>
+            </div>
           </div>
         )}
 
-        {/* Step 2: Payment */}
-        {step === 'payment' && (
-          <div className={styles.card}>
-            <h1 className={styles.cardTitle}>Payment Details</h1>
-            <p className={styles.cardSubtitle}>Amount: <strong>Rs {selectedAmount.toLocaleString()}</strong> — {purpose}</p>
-
-            <div className={styles.cardPreview}>
-              <div className={styles.cardChip} />
-              <div className={styles.cardNumber}>{card.number || '•••• •••• •••• ••••'}</div>
-              <div className={styles.cardBottom}>
-                <div><span className={styles.cardLabel}>Card Holder</span><div>{card.name || 'YOUR NAME'}</div></div>
-                <div><span className={styles.cardLabel}>Expires</span><div>{card.expiry || 'MM/YY'}</div></div>
-              </div>
-            </div>
-
-            <div className={styles.field}>
-              <label>Cardholder Name *</label>
-              <Input placeholder="Name on card" value={card.name}
-                onChange={e => setCard(p => ({ ...p, name: e.target.value }))} />
-            </div>
-            <div className={styles.field}>
-              <label>Card Number *</label>
-              <Input placeholder="1234 5678 9012 3456" value={card.number}
-                onChange={e => setCard(p => ({ ...p, number: formatCardNumber(e.target.value) }))} />
-            </div>
-            <div className={styles.fieldRow}>
-              <div className={styles.field}>
-                <label>Expiry Date *</label>
-                <Input placeholder="MM/YY" value={card.expiry}
-                  onChange={e => setCard(p => ({ ...p, expiry: formatExpiry(e.target.value) }))} />
-              </div>
-              <div className={styles.field}>
-                <label>CVV *</label>
-                <Input type="password" placeholder="•••" maxLength={4} value={card.cvv}
-                  onChange={e => setCard(p => ({ ...p, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))} />
-              </div>
-            </div>
-
-            <div className={styles.secureNote}>
-              <Shield size={14} /> Your payment information is encrypted and secure
-            </div>
-
-            <Button size="lg" onClick={handlePay} disabled={processing} className={styles.fullBtn}>
-              {processing ? 'Processing...' : `Pay Rs ${selectedAmount.toLocaleString()}`}
-            </Button>
-          </div>
-        )}
-
-        {/* Step 3: Success */}
         {step === 'success' && (
           <div className={styles.card} style={{ textAlign: 'center' }}>
-            <div className={styles.successIcon}><CheckCircle size={56} /></div>
-            <h1 className={styles.cardTitle}>Payment Successful!</h1>
-            <p className={styles.cardSubtitle}>Thank you for your generous contribution of <strong>Rs {selectedAmount.toLocaleString()}</strong> towards {purpose}.</p>
-            <div className={styles.receiptBox}>
-              <div className={styles.receiptRow}><span>Transaction ID</span><span>TXN-{Date.now().toString().slice(-8)}</span></div>
-              <div className={styles.receiptRow}><span>Amount</span><span>Rs {selectedAmount.toLocaleString()}</span></div>
-              <div className={styles.receiptRow}><span>Purpose</span><span>{purpose}</span></div>
-              <div className={styles.receiptRow}><span>Date</span><span>{new Date().toLocaleDateString()}</span></div>
-              <div className={styles.receiptRow}><span>Status</span><span className={styles.successText}>Completed</span></div>
+            <div className={styles.successIcon} style={{ color: '#10b981', display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+              <CheckCircle size={64} />
             </div>
-            <div className={styles.successBtns}>
-              <Button onClick={() => navigate('/student')}>Back to Portal</Button>
-              <Button variant="outline" onClick={() => { setStep('amount'); setAmount(''); setCard({ name: '', number: '', expiry: '', cvv: '' }); }}>
-                Make Another Contribution
-              </Button>
+            <h1 className={styles.cardTitle}>Payment Successful!</h1>
+            <p className={styles.cardSubtitle}>Thank you for your generous contribution of <strong>Rs {Number(successAmount).toLocaleString()}</strong> towards {successPurpose}.</p>
+
+            <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '8px', textAlign: 'left', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}><span style={{ color: '#64748b' }}>Amount</span><strong style={{ color: '#0f172a' }}>Rs {Number(successAmount).toLocaleString()}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}><span style={{ color: '#64748b' }}>Purpose</span><strong style={{ color: '#0f172a' }}>{successPurpose}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Status</span><strong style={{ color: '#10b981' }}>Completed & Logged</strong></div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <Button onClick={() => navigate('/')}>Back to Portal</Button>
             </div>
           </div>
         )}
-
-        {/* Trust badges */}
-        <div className={styles.trustBadges}>
-          <div className={styles.trustItem}><Lock size={16} /> SSL Encrypted</div>
-          <div className={styles.trustItem}><Shield size={16} /> Secure Checkout</div>
-          <div className={styles.trustItem}><CreditCard size={16} /> Visa / Mastercard</div>
-        </div>
       </div>
     </div>
   );

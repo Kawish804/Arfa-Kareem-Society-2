@@ -12,9 +12,6 @@ import { useAuth } from '@/context/AuthContext.jsx';
 import TransferRoleWidget from '@/components/TransferRoleWidget.jsx';
 import styles from './CRDashboard.module.css';
 
-// 🔴 Standard Monthly Society Fee
-const MONTHLY_FEE = 500;
-
 const CRDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -23,32 +20,34 @@ const CRDashboard = () => {
   const [activeTab, setActiveTab] = useState('funds');
   const [requestList, setRequestList] = useState([]);
   
-  // 🔴 NOTIFICATION & BADGE STATES
+  // 🔴 DYNAMIC MONTHLY FEE STATE
+  const [monthlyFee, setMonthlyFee] = useState(500); // Default fallback
+
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifs, setNotifs] = useState([]); 
-  
   const [events, setEvents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
 
-  // CLASS LIST STATE
   const [myClassList, setMyClassList] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [resetting, setResetting] = useState(false);
 
-  // MODAL STATES
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [paymentAmount, setPaymentAmount] = useState(MONTHLY_FEE);
+  const [paymentAmount, setPaymentAmount] = useState(0); // Dynamically set below
   const [processingPayment, setProcessingPayment] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', type: 'Department' });
-  
-  // Restored View Request Modal state
   const [viewRequestModal, setViewRequestModal] = useState(null); 
 
-  // --- 1. FETCH CR'S CLASS ---
   useEffect(() => {
+    // 🔴 FETCH DYNAMIC SETTINGS FEE
+    fetch('http://localhost:5000/api/settings/fee')
+      .then(res => res.json())
+      .then(data => setMonthlyFee(data.fee))
+      .catch(err => console.error("Failed to fetch monthly fee"));
+
     const fetchMyClass = async () => {
       try {
         const res = await fetch('http://localhost:5000/api/students/my-class', {
@@ -68,11 +67,9 @@ const CRDashboard = () => {
     fetchMyClass();
   }, [toast]);
 
-  // --- 2. FETCH SOCIETY DATA (Events, Announcements, Requests, Notifications) ---
   useEffect(() => {
     const fetchSocietyData = async () => {
       if (!currentUser?.email) return;
-
       const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
 
       try {
@@ -85,7 +82,6 @@ const CRDashboard = () => {
         const annRes = await fetch('http://localhost:5000/api/announcements', { headers });
         if (annRes.ok) setAnnouncements(await annRes.json());
 
-        // 🔴 FETCH REAL NOTIFICATIONS FOR TAB BADGES AND BELL
         const notifRes = await fetch('http://localhost:5000/api/notifications/all', { headers });
         if (notifRes.ok) {
           const fetchedNotifs = await notifRes.json();
@@ -95,11 +91,9 @@ const CRDashboard = () => {
             if (isPresident && isBroadcast) return false;
             return true;
           });
-          
-          setNotifs(validNotifs); // Save them to state so tabs can read them
-          setUnreadCount(validNotifs.filter(n => !n.read).length); // Top bell counter
+          setNotifs(validNotifs); 
+          setUnreadCount(validNotifs.filter(n => !n.read).length); 
         }
-
       } catch (error) {
         console.error("Failed to load society data:", error);
       }
@@ -111,33 +105,39 @@ const CRDashboard = () => {
   const unpaidCount = myClassList.filter(f => f.fundStatus === 'Unpaid').length;
   const pendingCount = myClassList.filter(f => f.fundStatus === 'Pending').length;
 
-  // 🔴 HELPER FUNCTION: Get Unread Count for Specific Tabs
   const getTabBadgeCount = (tabId) => {
     const typeMap = { funds: 'fund', requests: 'request', events: 'event', announcements: 'announcement' };
     const mappedType = typeMap[tabId];
     return notifs.filter(n => !n.read && n.type?.toLowerCase() === mappedType).length;
   };
 
-  // --- 3. PROCESS REAL TRANSACTION ---
   const openPaymentModal = (student) => {
     setSelectedStudent(student);
-    const totalOwed = MONTHLY_FEE + (student.arrears || 0);
-    setPaymentAmount(totalOwed);
+    const totalOwed = monthlyFee + (student.arrears || 0);
+    setPaymentAmount(totalOwed); // Default to full amount
     setPaymentModalOpen(true);
   };
 
+  // 🔴 PARTIAL PAYMENT / ARREARS MATH FIX
   const handleCollectPayment = async () => {
     if (!paymentAmount || paymentAmount <= 0) {
-      toast({ title: 'Please enter a valid amount', variant: 'destructive' });
-      return;
+      toast({ title: 'Please enter a valid amount', variant: 'destructive' }); return;
     }
 
     setProcessingPayment(true);
     try {
+      const totalOwed = monthlyFee + (selectedStudent.arrears || 0);
+      const paid = Number(paymentAmount);
+      
+      // Calculate remaining arrears (prevent negative arrears if they overpay)
+      const newArrears = Math.max(0, totalOwed - paid); 
+      // If they still owe money, status is Pending. Otherwise, Paid!
+      const newStatus = newArrears > 0 ? 'Pending' : 'Paid';
+
       const res1 = await fetch(`http://localhost:5000/api/students/${selectedStudent._id}/fund`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
-        body: JSON.stringify({ status: 'Paid', arrears: 0 })
+        body: JSON.stringify({ status: newStatus, arrears: newArrears })
       });
 
       if (!res1.ok) throw new Error('Failed to update student status');
@@ -145,7 +145,7 @@ const CRDashboard = () => {
       const newTransaction = {
         studentName: selectedStudent.fullName, rollNo: selectedStudent.rollNumber,
         department: selectedStudent.department, semester: selectedStudent.semester,
-        timing: selectedStudent.shift, amount: Number(paymentAmount),
+        timing: selectedStudent.shift, amount: paid, // We log exactly what was collected
         status: 'Paid', date: new Date().toISOString().split('T')[0],
         uploadedBy: currentUser.fullName
       };
@@ -158,8 +158,14 @@ const CRDashboard = () => {
 
       if (!res2.ok) throw new Error('Failed to log transaction for President');
 
-      setMyClassList(prev => prev.map(f => f._id === selectedStudent._id ? { ...f, fundStatus: 'Paid', arrears: 0 } : f));
-      toast({ title: 'Payment Collected & Sent to President!' });
+      setMyClassList(prev => prev.map(f => f._id === selectedStudent._id ? { ...f, fundStatus: newStatus, arrears: newArrears } : f));
+      
+      if (newArrears > 0) {
+        toast({ title: 'Partial Payment Logged', description: `Rs ${newArrears} added to student's arrears.`, variant: 'warning' });
+      } else {
+        toast({ title: 'Full Payment Collected & Sent to President!' });
+      }
+      
       setPaymentModalOpen(false);
     } catch (error) {
       toast({ title: 'Transaction failed', description: error.message, variant: 'destructive' });
@@ -168,9 +174,8 @@ const CRDashboard = () => {
     }
   };
 
-  // --- 4. RESET FUNDS (ADDS ARREARS!) ---
   const handleResetMonth = async () => {
-    if (!window.confirm(`Are you sure you want to start a new month? \n\n- All "Paid" students will reset to "Unpaid".\n- Anyone who didn't pay will have Rs ${MONTHLY_FEE} added to their Arrears.`)) return;
+    if (!window.confirm(`Are you sure you want to start a new month? \n\n- All "Paid" students will reset to "Unpaid".\n- Anyone who didn't pay will have Rs ${monthlyFee} added to their Arrears.`)) return;
 
     setResetting(true);
     try {
@@ -182,7 +187,7 @@ const CRDashboard = () => {
           newStatus = 'Unpaid';
         } else {
           newStatus = 'Pending';
-          newArrears += MONTHLY_FEE;
+          newArrears += monthlyFee; // 🔴 Dynamic Fee Used Here
         }
 
         if (newStatus !== student.fundStatus || newArrears !== student.arrears) {
@@ -199,7 +204,7 @@ const CRDashboard = () => {
 
       setMyClassList(prev => prev.map(student => {
         if (student.fundStatus === 'Paid') return { ...student, fundStatus: 'Unpaid' };
-        return { ...student, fundStatus: 'Pending', arrears: (student.arrears || 0) + MONTHLY_FEE };
+        return { ...student, fundStatus: 'Pending', arrears: (student.arrears || 0) + monthlyFee };
       }));
       toast({ title: 'New month started! Arrears calculated.' });
     } catch (error) {
@@ -209,43 +214,27 @@ const CRDashboard = () => {
     }
   };
 
-  // --- 5. SUBMIT REQUEST TO DATABASE ---
   const handleSubmitRequest = async () => {
-    if (!form.title.trim()) {
-      toast({ title: 'Please enter a title', variant: 'destructive' });
-      return;
-    }
-
+    if (!form.title.trim()) { toast({ title: 'Please enter a title', variant: 'destructive' }); return; }
     try {
       const res = await fetch('http://localhost:5000/api/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
-        body: JSON.stringify({
-          ...form,
-          submittedBy: currentUser.fullName,
-          email: currentUser.email,
-          role: currentUser.role || 'Class Representative' 
-        })
+        body: JSON.stringify({ ...form, submittedBy: currentUser.fullName, email: currentUser.email, role: currentUser.role || 'Class Representative' })
       });
-
       if (res.ok) {
         const newReq = await res.json();
         setRequestList(prev => [newReq, ...prev]);
         toast({ title: 'Request Submitted Successfully!' });
         setDialogOpen(false);
         setForm({ title: '', description: '', type: 'Department' });
-      } else {
-        toast({ title: 'Failed to submit request', variant: 'destructive' });
-      }
+      } else toast({ title: 'Failed to submit request', variant: 'destructive' });
     } catch (error) {
       toast({ title: 'Server connection failed', variant: 'destructive' });
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const handleLogout = () => { logout(); navigate('/login'); };
 
   const tabs = [
     { id: 'funds', label: 'Fund Collection', icon: Wallet },
@@ -268,16 +257,10 @@ const CRDashboard = () => {
           <div className={styles.headerRight}>
             <Badge variant="default">Class Representative</Badge>
             <TransferRoleWidget />
-            
             <Button variant="outline" size="sm" onClick={() => navigate('/notifications')} style={{ position: 'relative' }}>
               <Bell size={14} />
-              {unreadCount > 0 && (
-                <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50px', padding: '2px 5px', fontSize: '0.65rem', lineHeight: 1, fontWeight: 'bold', border: '2px solid white' }}>
-                  {unreadCount}
-                </span>
-              )}
+              {unreadCount > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50px', padding: '2px 5px', fontSize: '0.65rem', lineHeight: 1, fontWeight: 'bold', border: '2px solid white' }}>{unreadCount}</span>}
             </Button>
-            
             <Button variant="outline" size="sm" onClick={handleLogout}><LogOut size={14} /> Logout</Button>
           </div>
         </div>
@@ -286,18 +269,13 @@ const CRDashboard = () => {
       <div className={styles.container}>
         <nav className={styles.tabs}>
           {tabs.map(t => {
-            // 🔴 CALCULATE TAB SPECIFIC BADGES
             const badgeCount = getTabBadgeCount(t.id);
             return (
               <button key={t.id} className={`${styles.tab} ${activeTab === t.id ? styles.tabActive : ''}`} onClick={() => setActiveTab(t.id)}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <t.icon size={16} style={{ marginRight: '6px' }} />
                   <span>{t.label}</span>
-                  {badgeCount > 0 && (
-                    <span style={{ backgroundColor: '#ef4444', color: 'white', borderRadius: '10px', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 'bold', marginLeft: '6px' }}>
-                      {badgeCount}
-                    </span>
-                  )}
+                  {badgeCount > 0 && <span style={{ backgroundColor: '#ef4444', color: 'white', borderRadius: '10px', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 'bold', marginLeft: '6px' }}>{badgeCount}</span>}
                 </div>
               </button>
             );
@@ -305,14 +283,13 @@ const CRDashboard = () => {
         </nav>
 
         <div className={styles.content}>
-
           {/* FUNDS TAB */}
           {activeTab === 'funds' && (
             <div>
               <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h2 className={styles.sectionTitle}>Class Fund Collection</h2>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Standard Monthly Fee: Rs {MONTHLY_FEE}</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Standard Monthly Fee: Rs {monthlyFee}</p>
                 </div>
                 <Button size="sm" variant="outline" onClick={handleResetMonth} disabled={resetting || loadingList} style={{ color: 'var(--primary)' }}>
                   <RefreshCw size={14} style={{ marginRight: '6px' }} />
@@ -337,14 +314,14 @@ const CRDashboard = () => {
                     </thead>
                     <tbody>
                       {myClassList.length > 0 ? myClassList.map(student => {
-                        const totalOwed = MONTHLY_FEE + (student.arrears || 0);
+                        const totalOwed = monthlyFee + (student.arrears || 0);
                         return (
                           <tr key={student._id}>
                             <td>
                               <div className={styles.bold}>{student.fullName}</div>
                               <div className={styles.muted} style={{ fontSize: '0.75rem', marginTop: '2px' }}>{student.rollNumber} • {student.shift}</div>
                             </td>
-                            <td>Rs {MONTHLY_FEE}</td>
+                            <td>Rs {monthlyFee}</td>
                             <td><span style={{ color: student.arrears > 0 ? '#d97706' : 'inherit', fontWeight: student.arrears > 0 ? 'bold' : 'normal' }}>Rs {student.arrears || 0}</span></td>
                             <td><Badge variant={student.fundStatus === 'Paid' ? 'success' : student.fundStatus === 'Pending' ? 'warning' : 'secondary'}>{student.fundStatus === 'Pending' ? 'Has Arrears' : student.fundStatus}</Badge></td>
                             <td style={{ textAlign: 'right' }}>
@@ -356,9 +333,7 @@ const CRDashboard = () => {
                             </td>
                           </tr>
                         );
-                      }) : (
-                        <tr><td colSpan={5} className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>No students found in your class.</td></tr>
-                      )}
+                      }) : <tr><td colSpan={5} className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>No students found in your class.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -373,12 +348,9 @@ const CRDashboard = () => {
                 <h2 className={styles.sectionTitle}>My Requests</h2>
                 <Button size="sm" onClick={() => setDialogOpen(true)}><Plus size={14} /> Submit Request</Button>
               </div>
-
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
-                  <thead>
-                    <tr><th>Title</th><th>Type</th><th>Date Submitted</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr>
-                  </thead>
+                  <thead><tr><th>Title</th><th>Type</th><th>Date Submitted</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
                   <tbody>
                     {requestList.length > 0 ? requestList.map(req => (
                       <tr key={req._id}>
@@ -386,17 +358,9 @@ const CRDashboard = () => {
                         <td><Badge variant="outline">{req.type}</Badge></td>
                         <td className={styles.muted}>{new Date(req.createdAt || req.date).toLocaleDateString()}</td>
                         <td><Badge variant={req.status === 'Approved' ? 'success' : req.status === 'Rejected' ? 'destructive' : 'warning'}>{req.status || 'Pending'}</Badge></td>
-                        
-                        {/* 🔴 RESTORED VIEW REPLIES BUTTON */}
-                        <td style={{ textAlign: 'right' }}>
-                          <Button variant="outline" size="sm" onClick={() => setViewRequestModal(req)}>
-                            View & Replies {req.replies?.length > 0 && `(${req.replies.length})`}
-                          </Button>
-                        </td>
+                        <td style={{ textAlign: 'right' }}><Button variant="outline" size="sm" onClick={() => setViewRequestModal(req)}>View & Replies {req.replies?.length > 0 && `(${req.replies.length})`}</Button></td>
                       </tr>
-                    )) : (
-                      <tr><td colSpan="5" className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>You haven't submitted any requests yet.</td></tr>
-                    )}
+                    )) : <tr><td colSpan="5" className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>You haven't submitted any requests yet.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -416,18 +380,10 @@ const CRDashboard = () => {
                     </div>
                     <div style={{ marginBottom: '12px' }}><Badge variant="outline">{event.type}</Badge></div>
                     <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '16px' }}>{event.description}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.85rem' }}>
-                      <CalendarDays size={14} /> {event.date} {event.time && `• ${event.time}`}
-                    </div>
-                    {event.venue && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.85rem', marginTop: '4px' }}>
-                        <Clock size={14} /> {event.venue}
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.85rem' }}><CalendarDays size={14} /> {event.date} {event.time && `• ${event.time}`}</div>
+                    {event.venue && <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.85rem', marginTop: '4px' }}><Clock size={14} /> {event.venue}</div>}
                   </div>
-                )) : (
-                  <p className={styles.muted}>No upcoming events at this time.</p>
-                )}
+                )) : <p className={styles.muted}>No upcoming events at this time.</p>}
               </div>
             </div>
           )}
@@ -446,9 +402,7 @@ const CRDashboard = () => {
                     <p style={{ margin: 0, color: '#475569', fontSize: '0.95rem', lineHeight: '1.5' }}>{ann.description}</p>
                     <div style={{ marginTop: '12px', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Posted by: {ann.postedBy}</div>
                   </div>
-                )) : (
-                  <p className={styles.muted}>No recent announcements.</p>
-                )}
+                )) : <p className={styles.muted}>No recent announcements.</p>}
               </div>
             </div>
           )}
@@ -461,16 +415,16 @@ const CRDashboard = () => {
           <div className={styles.formFields}>
             <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '8px', marginBottom: '15px' }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem' }}>{selectedStudent.fullName}</h4>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#475569', marginBottom: '5px' }}><span>Current Month Dues:</span><span>Rs {MONTHLY_FEE}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#475569', marginBottom: '5px' }}><span>Current Month Dues:</span><span>Rs {monthlyFee}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#d97706', fontWeight: 'bold' }}><span>Total Arrears:</span><span>Rs {selectedStudent.arrears || 0}</span></div>
               <hr style={{ margin: '10px 0', borderColor: '#e2e8f0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 'bold' }}><span>Total Payable:</span><span>Rs {MONTHLY_FEE + (selectedStudent.arrears || 0)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 'bold' }}><span>Total Payable:</span><span>Rs {monthlyFee + (selectedStudent.arrears || 0)}</span></div>
             </div>
             <div className={styles.field}>
               <label>Amount Paid by Student (Rs) *</label>
               <Input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} />
             </div>
-            <p style={{ fontSize: '0.75rem', color: '#64748b' }}><AlertCircle size={12} style={{ display: 'inline', marginBottom: '-2px' }} /> This will permanently mark the student as Paid and send a receipt to the President.</p>
+            <p style={{ fontSize: '0.75rem', color: '#64748b' }}><AlertCircle size={12} style={{ display: 'inline', marginBottom: '-2px' }} /> If the student pays less than the Total Payable, the remainder will be added to their arrears.</p>
           </div>
         )}
       </Modal>
@@ -488,7 +442,6 @@ const CRDashboard = () => {
         </div>
       </Modal>
 
-      {/* 🔴 RESTORED VIEW REQUEST & REPLIES MODAL */}
       <Modal open={!!viewRequestModal} onClose={() => setViewRequestModal(null)} title="Request Status & Replies" footer={<Button onClick={() => setViewRequestModal(null)}>Close</Button>}>
         {viewRequestModal && (
           <div className={styles.formFields}>
@@ -496,36 +449,25 @@ const CRDashboard = () => {
               <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem' }}>{viewRequestModal.title}</h4>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Status:</span>
-                <Badge variant={viewRequestModal.status === 'Approved' ? 'success' : viewRequestModal.status === 'Rejected' ? 'destructive' : 'warning'}>
-                  {viewRequestModal.status || 'Pending'}
-                </Badge>
+                <Badge variant={viewRequestModal.status === 'Approved' ? 'success' : viewRequestModal.status === 'Rejected' ? 'destructive' : 'warning'}>{viewRequestModal.status || 'Pending'}</Badge>
               </div>
               <p style={{ margin: 0, fontSize: '0.9rem', color: '#333' }}><strong>Your Description:</strong><br/>{viewRequestModal.description}</p>
             </div>
 
-            <h4 style={{ fontSize: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '15px' }}>
-              Messages from President
-            </h4>
-            
+            <h4 style={{ fontSize: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '15px' }}>Messages from President</h4>
             {viewRequestModal.replies?.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {viewRequestModal.replies.map(reply => (
                   <div key={reply._id || reply.id} style={{ backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '8px', borderLeft: '4px solid var(--primary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <strong style={{ fontSize: '0.9rem' }}>{reply.from}</strong>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{reply.date} {reply.time}</span>
-                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><strong style={{ fontSize: '0.9rem' }}>{reply.from}</strong><span style={{ fontSize: '0.75rem', color: '#64748b' }}>{reply.date} {reply.time}</span></div>
                     <p style={{ margin: 0, fontSize: '0.9rem' }}>{reply.text}</p>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p style={{ fontSize: '0.9rem', color: '#64748b', fontStyle: 'italic' }}>No replies from the President yet.</p>
-            )}
+            ) : <p style={{ fontSize: '0.9rem', color: '#64748b', fontStyle: 'italic' }}>No replies from the President yet.</p>}
           </div>
         )}
       </Modal>
-
     </div>
   );
 };

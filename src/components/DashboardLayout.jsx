@@ -4,7 +4,7 @@ import {
   Users, Wallet, Receipt, CalendarDays, Megaphone, 
   Settings as SettingsIcon, LogOut, Menu, X, 
   Image as ImageIcon, BarChart3, GraduationCap, 
-  Bell, MessageSquare, ShieldAlert, FileCheck, ClipboardList
+  Bell, MessageSquare, ShieldAlert, FileCheck, ClipboardList, ScrollText
 } from 'lucide-react';
 import { useSettings } from '@/context/SettingsContext.jsx';
 import { useAuth } from '@/context/AuthContext.jsx'; // 🔴 1. Imported Auth Context
@@ -23,8 +23,9 @@ const menuItems = [
   { path: '/dashboard/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/dashboard/gallery', icon: ImageIcon, label: 'Gallery' },
   { path: '/dashboard/participants', icon: Users, label: 'Participants' },
-  { path: '/dashboard/studentmanagement', icon: Users, label: 'Student Management' },
+  { path: '/dashboard/studentmanagement', icon: GraduationCap, label: 'Student Management' },
   { path: '/dashboard/reports', icon: BarChart3, label: 'Reports' },
+  { path: '/dashboard/activity-log', icon: ScrollText, label: 'Activity Logs' },
   { path: '/dashboard/settings', icon: SettingsIcon, label: 'Settings' },
 ];
 
