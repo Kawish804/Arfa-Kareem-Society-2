@@ -1,21 +1,48 @@
+:root {
+  --sidebar-width: 280px;
+  --sidebar-collapsed: 80px;
+  --topbar-height: 70px;
+  
+  /* ENTERPRISE GREEN PALETTE */
+  --sidebar-bg: #52a447; /* Primary requested color */
+  --sidebar-hover: #458e3c; /* Darker green for hover states */
+  --sidebar-active: #ffffff; /* Crisp white for active highlight */
+  --sidebar-text-muted: #d1fae5; /* Minty white for unselected text */
+}
+
 .layout {
   display: flex;
   min-height: 100vh;
+  background: #f1f5f9;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
 }
 
-/* Desktop Sidebar */
+/* =========================================
+   SIDEBAR STYLES
+   ========================================= */
 .sidebar {
   position: fixed;
   top: 0;
   left: 0;
   height: 100vh;
-  background: var(--primary);
-  color: #fff;
-  transition: width 0.3s ease;
-  overflow: hidden;
+  background: var(--sidebar-bg);
+  color: #ffffff;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  overflow-x: hidden;
   z-index: 100;
   display: flex;
   flex-direction: column;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: #3f8335; /* Scrollbar tailored to the green theme */
+  border-radius: 4px;
 }
 
 .expanded {
@@ -26,98 +53,163 @@
   width: var(--sidebar-collapsed);
 }
 
-.brand {
+.sidebarHeader {
+  padding: 24px 20px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 20px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: 0;
+  background: var(--sidebar-bg);
+  z-index: 10;
+}
+
+.logoWrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
 }
 
 .brandIcon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: var(--accent);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  /* Updated gradient to match the green theme */
+  background: linear-gradient(135deg, #86efac, #16a34a);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(22, 163, 74, 0.3);
 }
 
 .brandText {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .brandName {
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 700;
-  white-space: nowrap;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.2;
 }
 
 .brandSub {
-  font-size: 0.6875rem;
-  opacity: 0.6;
-  white-space: nowrap;
+  font-size: 0.75rem;
+  color: #bbf7d0; /* Light mint green */
+  margin: 0;
+  font-weight: 500;
 }
 
 .nav {
   flex: 1;
-  padding: 12px 8px;
+  padding: 10px 16px 24px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  overflow-y: auto;
+  gap: 6px;
+}
+
+.navGroupTitle {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #a7f3d0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 10px 0 4px 12px;
+  white-space: nowrap;
+}
+
+.collapsed .navGroupTitle {
+  text-align: center;
+  margin: 10px 0 4px 0;
 }
 
 .navItem {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.875rem;
-  font-weight: 400;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: var(--sidebar-text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
   transition: all 0.2s ease;
-  white-space: nowrap;
   text-decoration: none;
+  white-space: nowrap;
+  position: relative;
 }
 
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--sidebar-hover);
+  color: #ffffff;
+}
+
+.navIcon {
+  flex-shrink: 0;
 }
 
 .navActive {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  font-weight: 500;
+  background: var(--sidebar-hover);
+  color: var(--sidebar-active);
+  font-weight: 600;
 }
 
-/* Topbar */
+.navActive::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 4px;
+  background: var(--sidebar-active);
+  border-radius: 0 4px 4px 0;
+}
+
+.collapsed .navItem {
+  justify-content: center;
+  padding: 14px 0;
+}
+
+.collapsed .navActive::before {
+  left: -16px; 
+}
+
+/* =========================================
+   MAIN LAYOUT & TOPBAR
+   ========================================= */
 .main {
   flex: 1;
   display: flex;
   flex-direction: column;
   margin-left: var(--sidebar-width);
-  transition: margin-left 0.3s ease;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100vh;
 }
 
-.collapsed ~ .main {
+.mainExpanded {
   margin-left: var(--sidebar-collapsed);
 }
 
 .topbar {
   height: var(--topbar-height);
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 24px;
   position: sticky;
   top: 0;
   z-index: 50;
@@ -126,54 +218,57 @@
 .topbarLeft {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
-.menuBtn {
+.mobileMenuBtn {
   display: none;
   background: none;
   border: none;
-  color: var(--text-muted);
-  padding: 6px;
-  border-radius: 6px;
-  position: relative;
-}
-.notifDot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--destructive);
-}
-.menuBtn:hover {
-  background: var(--primary-light);
+  color: #64748b;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #f1f5f9;
 }
 
 .collapseBtn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  cursor: pointer;
   transition: all 0.2s;
 }
 
 .collapseBtn:hover {
-  background: var(--primary-light);
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
-.rotated {
-  transform: rotate(180deg);
-}
-
-.topbarTitle {
-  font-size: 0.875rem;
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
   font-weight: 500;
-  color: var(--text-muted);
+}
+
+.breadcrumbMuted {
+  color: #94a3b8;
+}
+
+.breadcrumbDivider {
+  color: #cbd5e1;
+}
+
+.breadcrumbActive {
+  color: #0f172a;
+  font-weight: 600;
 }
 
 .topbarRight {
@@ -182,93 +277,150 @@
   gap: 12px;
 }
 
-.userInfo {
+.iconBtn {
+  background: none;
+  border: none;
+  color: #64748b;
+  padding: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.notifDot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid white;
+}
+
+.profileDivider {
+  width: 1px;
+  height: 24px;
+  background: #e2e8f0;
+  margin: 0 8px;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profileInfo {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
 
-.userName {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text);
+.profileName {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
 }
 
-.userEmail {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
+.profileRole {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .logoutBtn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 6px;
-  border-radius: 6px;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  color: #ef4444;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logoutBtn:hover {
-  background: var(--destructive-light);
-  color: var(--destructive);
+  background: #ef4444;
+  color: white;
 }
 
 .content {
   flex: 1;
-  padding: 24px;
   overflow-y: auto;
+  padding: 24px;
 }
 
-/* Mobile */
+.contentInner {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* =========================================
+   MOBILE RESPONSIVENESS
+   ========================================= */
 .mobileOverlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 200;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 90;
+  animation: fadeIn 0.2s ease;
 }
 
-.mobileSidebar {
-  width: var(--sidebar-width);
-  height: 100vh;
-  background: var(--primary);
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  animation: slideRight 0.3s ease;
-}
-
-@keyframes slideRight {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
+@media (max-width: 1024px) {
+  .profileInfo {
+    display: none;
   }
 }
 
 @media (max-width: 768px) {
   .sidebar {
-    display: none;
+    transform: translateX(-100%);
+    width: var(--sidebar-width);
   }
 
-  .main {
+  .sidebar.mobileOpen {
+    transform: translateX(0);
+  }
+
+  .mobileOverlay {
+    display: block;
+  }
+
+  .main, .mainExpanded {
     margin-left: 0 !important;
   }
 
-  .menuBtn {
+  .mobileMenuBtn {
     display: flex;
   }
 
@@ -276,16 +428,12 @@
     display: none;
   }
 
-  .topbarTitle {
+  .breadcrumb {
     display: none;
   }
 
-  .userInfo {
-    display: none;
-  }
-
-  .mobileOverlay {
-    display: block;
+  .topbar {
+    padding: 0 16px;
   }
 
   .content {

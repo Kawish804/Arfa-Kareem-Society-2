@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, FileCheck, CalendarDays, Megaphone, Bell, LogOut, Plus, Send, Wallet, RefreshCw, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { 
+  GraduationCap, FileCheck, CalendarDays, Megaphone, Bell, LogOut, 
+  Plus, Send, Wallet, RefreshCw, CheckCircle, AlertCircle, Clock, 
+  Search, Loader2, User, MessageSquare 
+} from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import Modal from '@/components/ui/Modal.jsx';
@@ -12,6 +16,8 @@ import { useAuth } from '@/context/AuthContext.jsx';
 import TransferRoleWidget from '@/components/TransferRoleWidget.jsx';
 import styles from './CRDashboard.module.css';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const CRDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -20,51 +26,54 @@ const CRDashboard = () => {
   const [activeTab, setActiveTab] = useState('funds');
   const [requestList, setRequestList] = useState([]);
   
-  // 🔴 DYNAMIC MONTHLY FEE STATE
-  const [monthlyFee, setMonthlyFee] = useState(500); // Default fallback
-
+  // DYNAMIC & SEARCH STATES
+  const [monthlyFee, setMonthlyFee] = useState(500); 
+  const [searchStudent, setSearchStudent] = useState('');
+  
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifs, setNotifs] = useState([]); 
   const [events, setEvents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
 
   const [myClassList, setMyClassList] = useState([]);
+  
+  // ENTERPRISE LOADING STATES
   const [loadingList, setLoadingList] = useState(true);
   const [resetting, setResetting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // MODAL STATES
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [paymentAmount, setPaymentAmount] = useState(0); // Dynamically set below
-  const [processingPayment, setProcessingPayment] = useState(false);
-
+  const [paymentAmount, setPaymentAmount] = useState(''); 
+  
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', type: 'Department' });
   const [viewRequestModal, setViewRequestModal] = useState(null); 
 
   useEffect(() => {
-    // 🔴 FETCH DYNAMIC SETTINGS FEE
-    fetch('http://localhost:5000/api/settings/fee')
-      .then(res => res.json())
-      .then(data => setMonthlyFee(data.fee))
-      .catch(err => console.error("Failed to fetch monthly fee"));
-
-    const fetchMyClass = async () => {
+    const fetchClassData = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/students/my-class', {
+        const feeRes = await fetch(`${API_URL}/settings/fee`);
+        if (feeRes.ok) {
+          const feeData = await feeRes.json();
+          setMonthlyFee(feeData.fee);
+        }
+
+        const classRes = await fetch(`${API_URL}/students/my-class`, {
           headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
         });
-        if (res.ok) {
-          const data = await res.json();
-          const formattedData = data.map(s => ({ ...s, arrears: s.arrears || 0 }));
-          setMyClassList(formattedData);
+        if (classRes.ok) {
+          const data = await classRes.json();
+          setMyClassList(data.map(s => ({ ...s, arrears: s.arrears || 0 })));
         }
       } catch (error) {
-        toast({ title: 'Failed to load class list', variant: 'destructive' });
+        toast({ title: 'Connection Error', description: 'Failed to load class list.', variant: 'destructive' });
       } finally {
         setLoadingList(false);
       }
     };
-    fetchMyClass();
+    fetchClassData();
   }, [toast]);
 
   useEffect(() => {
@@ -73,33 +82,38 @@ const CRDashboard = () => {
       const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
 
       try {
-        const reqRes = await fetch(`http://localhost:5000/api/requests/my-requests/${currentUser.email}`, { headers });
+        const [reqRes, eventRes, annRes, notifRes] = await Promise.all([
+          fetch(`${API_URL}/requests/my-requests/${currentUser.email}`, { headers }),
+          fetch(`${API_URL}/events`, { headers }),
+          fetch(`${API_URL}/announcements`, { headers }),
+          fetch(`${API_URL}/notifications/all`, { headers })
+        ]);
+
         if (reqRes.ok) setRequestList(await reqRes.json());
-
-        const eventRes = await fetch('http://localhost:5000/api/events', { headers });
         if (eventRes.ok) setEvents(await eventRes.json());
-
-        const annRes = await fetch('http://localhost:5000/api/announcements', { headers });
         if (annRes.ok) setAnnouncements(await annRes.json());
-
-        const notifRes = await fetch('http://localhost:5000/api/notifications/all', { headers });
         if (notifRes.ok) {
           const fetchedNotifs = await notifRes.json();
           const validNotifs = fetchedNotifs.filter(n => {
             const isPresident = currentUser?.role === 'President' || currentUser?.role === 'Admin';
             const isBroadcast = n.type?.toLowerCase() === 'announcement' || n.type?.toLowerCase() === 'event';
-            if (isPresident && isBroadcast) return false;
-            return true;
+            return !(isPresident && isBroadcast);
           });
           setNotifs(validNotifs); 
           setUnreadCount(validNotifs.filter(n => !n.read).length); 
         }
       } catch (error) {
-        console.error("Failed to load society data:", error);
+        console.error("Failed to load society data", error);
       }
     };
     fetchSocietyData();
   }, [currentUser]);
+
+  // --- DYNAMIC FILTERING & CALCULATIONS ---
+  const filteredStudents = myClassList.filter(s => 
+    s.fullName.toLowerCase().includes(searchStudent.toLowerCase()) || 
+    (s.rollNumber && s.rollNumber.toLowerCase().includes(searchStudent.toLowerCase()))
+  );
 
   const paidCount = myClassList.filter(f => f.fundStatus === 'Paid').length;
   const unpaidCount = myClassList.filter(f => f.fundStatus === 'Unpaid').length;
@@ -114,27 +128,25 @@ const CRDashboard = () => {
   const openPaymentModal = (student) => {
     setSelectedStudent(student);
     const totalOwed = monthlyFee + (student.arrears || 0);
-    setPaymentAmount(totalOwed); // Default to full amount
+    setPaymentAmount(totalOwed); 
     setPaymentModalOpen(true);
   };
 
-  // 🔴 PARTIAL PAYMENT / ARREARS MATH FIX
+  // ENTERPRISE LOGIC: ARREARS CALCULATION
   const handleCollectPayment = async () => {
-    if (!paymentAmount || paymentAmount <= 0) {
-      toast({ title: 'Please enter a valid amount', variant: 'destructive' }); return;
+    const enteredAmount = Number(paymentAmount);
+    if (!enteredAmount || enteredAmount <= 0) {
+      toast({ title: 'Invalid Amount', description: 'Please enter a valid payment amount.', variant: 'destructive' }); 
+      return;
     }
 
-    setProcessingPayment(true);
+    setIsSubmitting(true);
     try {
       const totalOwed = monthlyFee + (selectedStudent.arrears || 0);
-      const paid = Number(paymentAmount);
-      
-      // Calculate remaining arrears (prevent negative arrears if they overpay)
-      const newArrears = Math.max(0, totalOwed - paid); 
-      // If they still owe money, status is Pending. Otherwise, Paid!
+      const newArrears = Math.max(0, totalOwed - enteredAmount); 
       const newStatus = newArrears > 0 ? 'Pending' : 'Paid';
 
-      const res1 = await fetch(`http://localhost:5000/api/students/${selectedStudent._id}/fund`, {
+      const res1 = await fetch(`${API_URL}/students/${selectedStudent._id}/fund`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify({ status: newStatus, arrears: newArrears })
@@ -145,37 +157,37 @@ const CRDashboard = () => {
       const newTransaction = {
         studentName: selectedStudent.fullName, rollNo: selectedStudent.rollNumber,
         department: selectedStudent.department, semester: selectedStudent.semester,
-        timing: selectedStudent.shift, amount: paid, // We log exactly what was collected
+        timing: selectedStudent.shift, amount: enteredAmount, 
         status: 'Paid', date: new Date().toISOString().split('T')[0],
         uploadedBy: currentUser.fullName
       };
 
-      const res2 = await fetch('http://localhost:5000/api/fund-collections/record', {
+      const res2 = await fetch(`${API_URL}/fund-collections/record`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify(newTransaction)
       });
 
-      if (!res2.ok) throw new Error('Failed to log transaction for President');
+      if (!res2.ok) throw new Error('Failed to log transaction');
 
       setMyClassList(prev => prev.map(f => f._id === selectedStudent._id ? { ...f, fundStatus: newStatus, arrears: newArrears } : f));
       
       if (newArrears > 0) {
         toast({ title: 'Partial Payment Logged', description: `Rs ${newArrears} added to student's arrears.`, variant: 'warning' });
       } else {
-        toast({ title: 'Full Payment Collected & Sent to President!' });
+        toast({ title: 'Success', description: 'Full Payment Collected & Sent to Treasury!' });
       }
       
       setPaymentModalOpen(false);
     } catch (error) {
-      toast({ title: 'Transaction failed', description: error.message, variant: 'destructive' });
+      toast({ title: 'Transaction failed', description: 'Please try again.', variant: 'destructive' });
     } finally {
-      setProcessingPayment(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleResetMonth = async () => {
-    if (!window.confirm(`Are you sure you want to start a new month? \n\n- All "Paid" students will reset to "Unpaid".\n- Anyone who didn't pay will have Rs ${monthlyFee} added to their Arrears.`)) return;
+    if (!window.confirm(`⚠️ START NEW MONTH\n\nAre you sure?\n- "Paid" students will reset to "Unpaid".\n- Unpaid students will have Rs ${monthlyFee} added to their Arrears.`)) return;
 
     setResetting(true);
     try {
@@ -187,11 +199,11 @@ const CRDashboard = () => {
           newStatus = 'Unpaid';
         } else {
           newStatus = 'Pending';
-          newArrears += monthlyFee; // 🔴 Dynamic Fee Used Here
+          newArrears += monthlyFee;
         }
 
         if (newStatus !== student.fundStatus || newArrears !== student.arrears) {
-          return fetch(`http://localhost:5000/api/students/${student._id}/fund`, {
+          return fetch(`${API_URL}/students/${student._id}/fund`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
             body: JSON.stringify({ status: newStatus, arrears: newArrears })
@@ -206,18 +218,22 @@ const CRDashboard = () => {
         if (student.fundStatus === 'Paid') return { ...student, fundStatus: 'Unpaid' };
         return { ...student, fundStatus: 'Pending', arrears: (student.arrears || 0) + monthlyFee };
       }));
-      toast({ title: 'New month started! Arrears calculated.' });
+      toast({ title: 'Success', description: 'New month started. Arrears successfully calculated.' });
     } catch (error) {
-      toast({ title: 'Error resetting funds', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to reset monthly funds.', variant: 'destructive' });
     } finally {
       setResetting(false);
     }
   };
 
   const handleSubmitRequest = async () => {
-    if (!form.title.trim()) { toast({ title: 'Please enter a title', variant: 'destructive' }); return; }
+    if (!form.title.trim() || !form.description.trim()) { 
+      toast({ title: 'Validation Error', description: 'Please fill all fields.', variant: 'destructive' }); 
+      return; 
+    }
+    setIsSubmitting(true);
     try {
-      const res = await fetch('http://localhost:5000/api/requests', {
+      const res = await fetch(`${API_URL}/requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify({ ...form, submittedBy: currentUser.fullName, email: currentUser.email, role: currentUser.role || 'Class Representative' })
@@ -225,12 +241,14 @@ const CRDashboard = () => {
       if (res.ok) {
         const newReq = await res.json();
         setRequestList(prev => [newReq, ...prev]);
-        toast({ title: 'Request Submitted Successfully!' });
+        toast({ title: 'Success', description: 'Request Submitted Successfully!' });
         setDialogOpen(false);
         setForm({ title: '', description: '', type: 'Department' });
-      } else toast({ title: 'Failed to submit request', variant: 'destructive' });
+      } else throw new Error('Failed');
     } catch (error) {
-      toast({ title: 'Server connection failed', variant: 'destructive' });
+      toast({ title: 'Server Error', description: 'Could not submit request.', variant: 'destructive' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -238,30 +256,39 @@ const CRDashboard = () => {
 
   const tabs = [
     { id: 'funds', label: 'Fund Collection', icon: Wallet },
-    { id: 'requests', label: 'Requests', icon: FileCheck },
-    { id: 'events', label: 'Events', icon: CalendarDays },
+    { id: 'requests', label: 'My Requests', icon: FileCheck },
+    { id: 'events', label: 'Society Events', icon: CalendarDays },
     { id: 'announcements', label: 'Announcements', icon: Megaphone },
   ];
 
   return (
-    <div className={styles.page}>
+    <div className={styles.pageWrap}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.headerLeft}>
-            <div className={styles.headerLogo}><GraduationCap size={20} /></div>
+            <div className={styles.headerLogo}><GraduationCap size={22} /></div>
             <div>
-              <h1 className={styles.headerTitle}>CR Dashboard</h1>
-              <p className={styles.headerSub}>Welcome, {currentUser?.fullName || 'Representative'}</p>
+              <h1 className={styles.headerTitle}>Class Representative</h1>
+              <p className={styles.headerSub}>Logged in as <strong>{currentUser?.fullName}</strong></p>
             </div>
           </div>
           <div className={styles.headerRight}>
-            <Badge variant="default">Class Representative</Badge>
+            <Badge variant="outline" className={styles.hideMobile}>CR Access</Badge>
             <TransferRoleWidget />
-            <Button variant="outline" size="sm" onClick={() => navigate('/notifications')} style={{ position: 'relative' }}>
-              <Bell size={14} />
-              {unreadCount > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50px', padding: '2px 5px', fontSize: '0.65rem', lineHeight: 1, fontWeight: 'bold', border: '2px solid white' }}>{unreadCount}</span>}
+            
+            {/* ENTERPRISE FIX: Added Chat Icon Button */}
+            <button className={styles.iconBtn} onClick={() => navigate('/chat')} title="Messages">
+              <MessageSquare size={20} />
+            </button>
+            
+            <button className={styles.iconBtn} onClick={() => navigate('/notifications')} title="Notifications">
+              <Bell size={20} />
+              {unreadCount > 0 && <span className={styles.notifBadge}>{unreadCount}</span>}
+            </button>
+
+            <Button variant="outline" size="sm" onClick={handleLogout} className={styles.logoutBtn}>
+              <LogOut size={16} /> <span className={styles.hideMobile} style={{marginLeft: '6px'}}>Logout</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={handleLogout}><LogOut size={14} /> Logout</Button>
           </div>
         </div>
       </header>
@@ -273,9 +300,9 @@ const CRDashboard = () => {
             return (
               <button key={t.id} className={`${styles.tab} ${activeTab === t.id ? styles.tabActive : ''}`} onClick={() => setActiveTab(t.id)}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <t.icon size={16} style={{ marginRight: '6px' }} />
+                  <t.icon size={16} style={{ marginRight: '8px' }} />
                   <span>{t.label}</span>
-                  {badgeCount > 0 && <span style={{ backgroundColor: '#ef4444', color: 'white', borderRadius: '10px', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 'bold', marginLeft: '6px' }}>{badgeCount}</span>}
+                  {badgeCount > 0 && <span className={styles.tabBadge}>{badgeCount}</span>}
                 </div>
               </button>
             );
@@ -285,82 +312,149 @@ const CRDashboard = () => {
         <div className={styles.content}>
           {/* FUNDS TAB */}
           {activeTab === 'funds' && (
-            <div>
-              <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className={styles.fadeEnter}>
+              <div className={styles.sectionHeader}>
                 <div>
-                  <h2 className={styles.sectionTitle}>Class Fund Collection</h2>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Standard Monthly Fee: Rs {monthlyFee}</p>
+                  <h2 className={styles.sectionTitle}>Class Fund Management</h2>
+                  <p className={styles.sectionDesc}>Standard Monthly Fee: <strong>Rs {monthlyFee}</strong></p>
                 </div>
-                <Button size="sm" variant="outline" onClick={handleResetMonth} disabled={resetting || loadingList} style={{ color: 'var(--primary)' }}>
-                  <RefreshCw size={14} style={{ marginRight: '6px' }} />
-                  {resetting ? 'Processing...' : 'Start New Month'}
+                <Button onClick={handleResetMonth} disabled={resetting || loadingList} className={styles.resetBtn}>
+                  {resetting ? <Loader2 size={16} className={styles.spin} style={{ marginRight: '6px' }} /> : <RefreshCw size={16} style={{ marginRight: '6px' }} />}
+                  Start New Month
                 </Button>
               </div>
 
               <div className={styles.fundStats}>
-                <div className={styles.fundStatCard}><span className={styles.fundStatLabel}>Total Students</span><span className={styles.fundStatValue}>{myClassList.length}</span></div>
-                <div className={styles.fundStatCard}><span className={styles.fundStatLabel}>Paid This Month</span><span className={styles.fundStatValue}>{paidCount}</span></div>
-                <div className={styles.fundStatCard}><span className={styles.fundStatLabel}>Unpaid</span><span className={styles.fundStatValue + ' ' + styles.fundPending}>{unpaidCount}</span></div>
-                <div className={styles.fundStatCard}><span className={styles.fundStatLabel}>Pending (Arrears)</span><span className={styles.fundStatValue} style={{ color: '#d97706' }}>{pendingCount}</span></div>
+                <div className={styles.fundStatCard}>
+                  <UsersIcon className={styles.statIcon} />
+                  <div>
+                    <span className={styles.fundStatLabel}>Total Students</span>
+                    <span className={styles.fundStatValue}>{myClassList.length}</span>
+                  </div>
+                </div>
+                <div className={styles.fundStatCard}>
+                  <CheckCircle className={styles.statIcon} style={{color: '#10b981', background: '#d1fae5'}} />
+                  <div>
+                    <span className={styles.fundStatLabel}>Paid This Month</span>
+                    <span className={styles.fundStatValue} style={{color: '#10b981'}}>{paidCount}</span>
+                  </div>
+                </div>
+                <div className={styles.fundStatCard}>
+                  <Clock className={styles.statIcon} style={{color: '#ef4444', background: '#fee2e2'}} />
+                  <div>
+                    <span className={styles.fundStatLabel}>Unpaid</span>
+                    <span className={styles.fundStatValue} style={{color: '#ef4444'}}>{unpaidCount}</span>
+                  </div>
+                </div>
+                <div className={styles.fundStatCard}>
+                  <AlertCircle className={styles.statIcon} style={{color: '#d97706', background: '#fef3c7'}} />
+                  <div>
+                    <span className={styles.fundStatLabel}>Pending (Arrears)</span>
+                    <span className={styles.fundStatValue} style={{color: '#d97706'}}>{pendingCount}</span>
+                  </div>
+                </div>
               </div>
 
               {loadingList ? (
-                <p>Loading your class list...</p>
-              ) : (
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr><th>Student Details</th><th>Current Month</th><th>Arrears Owed</th><th>Status</th><th style={{ textAlign: 'right' }}>Action</th></tr>
-                    </thead>
-                    <tbody>
-                      {myClassList.length > 0 ? myClassList.map(student => {
-                        const totalOwed = monthlyFee + (student.arrears || 0);
-                        return (
-                          <tr key={student._id}>
-                            <td>
-                              <div className={styles.bold}>{student.fullName}</div>
-                              <div className={styles.muted} style={{ fontSize: '0.75rem', marginTop: '2px' }}>{student.rollNumber} • {student.shift}</div>
-                            </td>
-                            <td>Rs {monthlyFee}</td>
-                            <td><span style={{ color: student.arrears > 0 ? '#d97706' : 'inherit', fontWeight: student.arrears > 0 ? 'bold' : 'normal' }}>Rs {student.arrears || 0}</span></td>
-                            <td><Badge variant={student.fundStatus === 'Paid' ? 'success' : student.fundStatus === 'Pending' ? 'warning' : 'secondary'}>{student.fundStatus === 'Pending' ? 'Has Arrears' : student.fundStatus}</Badge></td>
-                            <td style={{ textAlign: 'right' }}>
-                              {student.fundStatus === 'Paid' ? (
-                                <Button variant="ghost" size="sm" disabled style={{ color: 'green', opacity: 0.8 }}><CheckCircle size={14} style={{ marginRight: '6px' }} /> Paid</Button>
-                              ) : (
-                                <Button variant="primary" size="sm" onClick={() => openPaymentModal(student)}>Collect Rs {totalOwed}</Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      }) : <tr><td colSpan={5} className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>No students found in your class.</td></tr>}
-                    </tbody>
-                  </table>
+                <div className={styles.loadingState}>
+                  <Loader2 size={32} className={styles.spin} />
+                  <p>Loading your class registry...</p>
                 </div>
+              ) : (
+                <>
+                  <div className={styles.controlsRow}>
+                    <div className={styles.searchWrap}>
+                      <Search size={16} className={styles.searchIcon} />
+                      <Input 
+                        placeholder="Search by student name or roll number..." 
+                        value={searchStudent} 
+                        onChange={(e) => setSearchStudent(e.target.value)} 
+                        className={styles.searchInput}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.tableWrap}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>Student Details</th>
+                          <th className={styles.hideSmall}>Current Month</th>
+                          <th>Arrears Owed</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredStudents.length > 0 ? filteredStudents.map(student => {
+                          const totalOwed = monthlyFee + (student.arrears || 0);
+                          return (
+                            <tr key={student._id}>
+                              <td>
+                                <div className={styles.bold}>{student.fullName}</div>
+                                <div className={styles.mutedInfo}>{student.rollNumber || 'N/A'} • {student.shift}</div>
+                              </td>
+                              <td className={styles.hideSmall}>Rs {monthlyFee}</td>
+                              <td>
+                                <span className={student.arrears > 0 ? styles.arrearsText : ''}>
+                                  Rs {student.arrears || 0}
+                                </span>
+                              </td>
+                              <td>
+                                <Badge variant={student.fundStatus === 'Paid' ? 'success' : student.fundStatus === 'Pending' ? 'warning' : 'destructive'}>
+                                  {student.fundStatus === 'Pending' ? 'Has Arrears' : student.fundStatus}
+                                </Badge>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                {student.fundStatus === 'Paid' ? (
+                                  <span className={styles.paidText}><CheckCircle size={14} /> Paid</span>
+                                ) : (
+                                  <Button size="sm" onClick={() => openPaymentModal(student)} className={styles.collectBtn}>
+                                    Collect Rs {totalOwed}
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        }) : <tr><td colSpan={5} className={styles.emptyTable}>No students found matching your search.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           )}
 
           {/* REQUESTS TAB */}
           {activeTab === 'requests' && (
-            <div>
-              <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 className={styles.sectionTitle}>My Requests</h2>
-                <Button size="sm" onClick={() => setDialogOpen(true)}><Plus size={14} /> Submit Request</Button>
+            <div className={styles.fadeEnter}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>My Requests</h2>
+                  <p className={styles.sectionDesc}>Submit budgets, departmental issues, or event ideas to the President.</p>
+                </div>
+                <Button onClick={() => setDialogOpen(true)} className={styles.actionBtn}>
+                  <Plus size={16} style={{marginRight: '6px'}} /> Submit Request
+                </Button>
               </div>
+              
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
-                  <thead><tr><th>Title</th><th>Type</th><th>Date Submitted</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
+                  <thead><tr><th>Title & Details</th><th>Category</th><th>Date Submitted</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
                   <tbody>
                     {requestList.length > 0 ? requestList.map(req => (
                       <tr key={req._id}>
                         <td className={styles.bold}>{req.title}</td>
                         <td><Badge variant="outline">{req.type}</Badge></td>
-                        <td className={styles.muted}>{new Date(req.createdAt || req.date).toLocaleDateString()}</td>
+                        <td className={styles.mutedInfo}>{new Date(req.createdAt || req.date).toLocaleDateString()}</td>
                         <td><Badge variant={req.status === 'Approved' ? 'success' : req.status === 'Rejected' ? 'destructive' : 'warning'}>{req.status || 'Pending'}</Badge></td>
-                        <td style={{ textAlign: 'right' }}><Button variant="outline" size="sm" onClick={() => setViewRequestModal(req)}>View & Replies {req.replies?.length > 0 && `(${req.replies.length})`}</Button></td>
+                        <td style={{ textAlign: 'right' }}>
+                          <Button variant="ghost" size="sm" onClick={() => setViewRequestModal(req)} className={styles.viewBtn}>
+                            View {req.replies?.length > 0 && <span className={styles.replyCounter}>{req.replies.length}</span>}
+                          </Button>
+                        </td>
                       </tr>
-                    )) : <tr><td colSpan="5" className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>You haven't submitted any requests yet.</td></tr>}
+                    )) : <tr><td colSpan="5" className={styles.emptyTable}>You haven't submitted any requests yet.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -369,107 +463,145 @@ const CRDashboard = () => {
 
           {/* EVENTS TAB */}
           {activeTab === 'events' && (
-            <div>
-              <h2 className={styles.sectionTitle}>Upcoming Events</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', marginTop: '16px' }}>
+            <div className={styles.fadeEnter}>
+              <h2 className={styles.sectionTitle}>Society Events</h2>
+              <div className={styles.gridContainer}>
                 {events.length > 0 ? events.map(event => (
-                  <div key={event._id} style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: 'white' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold' }}>{event.title}</h3>
+                  <div key={event._id} className={styles.card}>
+                    <div className={styles.cardHeader}>
+                      <h3 className={styles.cardTitle}>{event.title}</h3>
                       <Badge variant={event.status === 'Upcoming' ? 'default' : event.status === 'Completed' ? 'success' : 'secondary'}>{event.status}</Badge>
                     </div>
-                    <div style={{ marginBottom: '12px' }}><Badge variant="outline">{event.type}</Badge></div>
-                    <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '16px' }}>{event.description}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.85rem' }}><CalendarDays size={14} /> {event.date} {event.time && `• ${event.time}`}</div>
-                    {event.venue && <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.85rem', marginTop: '4px' }}><Clock size={14} /> {event.venue}</div>}
+                    <Badge variant="outline" style={{marginBottom: '12px'}}>{event.type}</Badge>
+                    <p className={styles.cardDesc}>{event.description}</p>
+                    <div className={styles.cardMeta}><CalendarDays size={14} /> {event.date} {event.time && `• ${event.time}`}</div>
+                    {event.venue && <div className={styles.cardMeta}><Clock size={14} /> {event.venue}</div>}
                   </div>
-                )) : <p className={styles.muted}>No upcoming events at this time.</p>}
+                )) : <div className={styles.emptyTable}>No upcoming events.</div>}
               </div>
             </div>
           )}
 
           {/* ANNOUNCEMENTS TAB */}
           {activeTab === 'announcements' && (
-            <div>
-              <h2 className={styles.sectionTitle}>Society Announcements</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+            <div className={styles.fadeEnter}>
+              <h2 className={styles.sectionTitle}>Announcements</h2>
+              <div className={styles.listContainer}>
                 {announcements.length > 0 ? announcements.map(ann => (
-                  <div key={ann._id} style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: 'white', borderLeft: '4px solid var(--primary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#0f172a' }}>{ann.title}</h3>
-                      <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{ann.postedDate}</span>
+                  <div key={ann._id} className={styles.announcementCard}>
+                    <div className={styles.annHeader}>
+                      <h3 className={styles.annTitle}>{ann.title}</h3>
+                      <span className={styles.annDate}>{ann.postedDate}</span>
                     </div>
-                    <p style={{ margin: 0, color: '#475569', fontSize: '0.95rem', lineHeight: '1.5' }}>{ann.description}</p>
-                    <div style={{ marginTop: '12px', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Posted by: {ann.postedBy}</div>
+                    <p className={styles.annDesc}>{ann.description}</p>
+                    <div className={styles.annFooter}>Posted by: {ann.postedBy}</div>
                   </div>
-                )) : <p className={styles.muted}>No recent announcements.</p>}
+                )) : <div className={styles.emptyTable}>No recent announcements.</div>}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* PAYMENT MODAL */}
-      <Modal open={paymentModalOpen} onClose={() => setPaymentModalOpen(false)} title="Record Payment Receipt" footer={<><Button variant="outline" onClick={() => setPaymentModalOpen(false)}>Cancel</Button><Button onClick={handleCollectPayment} disabled={processingPayment}>{processingPayment ? 'Processing...' : 'Confirm & Generate Receipt'}</Button></>}>
-        {selectedStudent && (
-          <div className={styles.formFields}>
-            <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '8px', marginBottom: '15px' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem' }}>{selectedStudent.fullName}</h4>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#475569', marginBottom: '5px' }}><span>Current Month Dues:</span><span>Rs {monthlyFee}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#d97706', fontWeight: 'bold' }}><span>Total Arrears:</span><span>Rs {selectedStudent.arrears || 0}</span></div>
-              <hr style={{ margin: '10px 0', borderColor: '#e2e8f0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 'bold' }}><span>Total Payable:</span><span>Rs {monthlyFee + (selectedStudent.arrears || 0)}</span></div>
-            </div>
-            <div className={styles.field}>
-              <label>Amount Paid by Student (Rs) *</label>
-              <Input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} />
-            </div>
-            <p style={{ fontSize: '0.75rem', color: '#64748b' }}><AlertCircle size={12} style={{ display: 'inline', marginBottom: '-2px' }} /> If the student pays less than the Total Payable, the remainder will be added to their arrears.</p>
+      {/* 🔴 DYNAMIC PAYMENT MODAL WITH REAL-TIME CALCULATION */}
+      <Modal open={paymentModalOpen} onClose={() => !isSubmitting && setPaymentModalOpen(false)} title="Record Payment" 
+        footer={
+          <div style={{display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%'}}>
+            <Button variant="outline" onClick={() => setPaymentModalOpen(false)} disabled={isSubmitting}>Cancel</Button>
+            <Button onClick={handleCollectPayment} disabled={isSubmitting || !paymentAmount} style={{backgroundColor: '#52a447'}}>
+              {isSubmitting ? <><Loader2 size={16} className={styles.spin} style={{marginRight: '6px'}}/> Processing...</> : 'Confirm Payment'}
+            </Button>
           </div>
-        )}
+        }>
+        {selectedStudent && (() => {
+          const totalOwed = monthlyFee + (selectedStudent.arrears || 0);
+          const enteredAmount = Number(paymentAmount) || 0;
+          const remainingArrears = Math.max(0, totalOwed - enteredAmount);
+          
+          return (
+            <div className={styles.formFields}>
+              <div className={styles.receiptBox}>
+                <h4 className={styles.receiptName}>{selectedStudent.fullName}</h4>
+                <div className={styles.receiptRow}><span>Current Month Dues:</span><span>Rs {monthlyFee}</span></div>
+                <div className={styles.receiptRow} style={{color: '#d97706'}}><span>Total Arrears:</span><span>Rs {selectedStudent.arrears || 0}</span></div>
+                <hr className={styles.receiptDivider} />
+                <div className={styles.receiptTotal}><span>Total Payable:</span><span>Rs {totalOwed}</span></div>
+              </div>
+              
+              <div className={styles.field}>
+                <label>Amount Paid by Student (Rs) <span style={{color: 'red'}}>*</span></label>
+                <Input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} disabled={isSubmitting} autoFocus />
+              </div>
+
+              {/* DYNAMIC LOGIC DISPLAY */}
+              <div className={styles.calcBox}>
+                <AlertCircle size={14} className={remainingArrears > 0 ? styles.iconWarning : styles.iconSuccess} />
+                <span style={{flex: 1, fontSize: '0.85rem'}}>
+                  {remainingArrears > 0 
+                    ? `Student will still owe Rs ${remainingArrears} in arrears.` 
+                    : `Full payment cleared. Status will change to Paid.`}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* REQUEST SUBMISSION MODAL */}
-      <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title="Submit Departmental Request" footer={<><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={handleSubmitRequest}><Send size={14} style={{ marginRight: '6px' }} /> Submit</Button></>}>
+      <Modal open={dialogOpen} onClose={() => !isSubmitting && setDialogOpen(false)} title="Submit Request" 
+        footer={
+          <div style={{display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%'}}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
+            <Button onClick={handleSubmitRequest} disabled={isSubmitting} style={{backgroundColor: '#52a447'}}>
+              {isSubmitting ? <><Loader2 size={14} className={styles.spin} style={{marginRight: '6px'}}/> Submitting...</> : <><Send size={14} style={{ marginRight: '6px' }} /> Submit Request</>}
+            </Button>
+          </div>
+        }>
         <div className={styles.formFields}>
-          <div className={styles.field}><label>Title *</label><Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} /></div>
-          <div className={styles.field}><label>Type</label>
-            <Select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}>
-              <option value="Department">Department</option><option value="Event">Event</option><option value="Other">Other</option>
+          <div className={styles.field}><label>Title <span style={{color: 'red'}}>*</span></label><Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} disabled={isSubmitting} /></div>
+          <div className={styles.field}><label>Category</label>
+            <Select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} disabled={isSubmitting}>
+              <option value="Department">Department Support</option><option value="Event">Event Idea</option><option value="Other">Other</option>
             </Select>
           </div>
-          <div className={styles.field}><label>Description</label><Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={4} /></div>
+          <div className={styles.field}><label>Details <span style={{color: 'red'}}>*</span></label><Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={4} disabled={isSubmitting} /></div>
         </div>
       </Modal>
 
-      <Modal open={!!viewRequestModal} onClose={() => setViewRequestModal(null)} title="Request Status & Replies" footer={<Button onClick={() => setViewRequestModal(null)}>Close</Button>}>
+      {/* VIEW REQUEST MODAL */}
+      <Modal open={!!viewRequestModal} onClose={() => setViewRequestModal(null)} title="Request Status & Replies" footer={<Button onClick={() => setViewRequestModal(null)} variant="outline">Close</Button>}>
         {viewRequestModal && (
           <div className={styles.formFields}>
-            <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '8px', marginBottom: '15px' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem' }}>{viewRequestModal.title}</h4>
+            <div className={styles.receiptBox}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#0f172a' }}>{viewRequestModal.title}</h4>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Status:</span>
+                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Current Status:</span>
                 <Badge variant={viewRequestModal.status === 'Approved' ? 'success' : viewRequestModal.status === 'Rejected' ? 'destructive' : 'warning'}>{viewRequestModal.status || 'Pending'}</Badge>
               </div>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: '#333' }}><strong>Your Description:</strong><br/>{viewRequestModal.description}</p>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', lineHeight: '1.5' }}><strong>Description:</strong><br/>{viewRequestModal.description}</p>
             </div>
 
-            <h4 style={{ fontSize: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '15px' }}>Messages from President</h4>
+            <h4 style={{ fontSize: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px', color: '#0f172a' }}>Official Replies</h4>
             {viewRequestModal.replies?.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {viewRequestModal.replies.map(reply => (
-                  <div key={reply._id || reply.id} style={{ backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '8px', borderLeft: '4px solid var(--primary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><strong style={{ fontSize: '0.9rem' }}>{reply.from}</strong><span style={{ fontSize: '0.75rem', color: '#64748b' }}>{reply.date} {reply.time}</span></div>
-                    <p style={{ margin: 0, fontSize: '0.9rem' }}>{reply.text}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {viewRequestModal.replies.map((reply, idx) => (
+                  <div key={idx} style={{ backgroundColor: '#f1f5f9', padding: '14px', borderRadius: '10px', borderLeft: '4px solid #52a447' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{reply.from}</strong>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{reply.date} {reply.time}</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', lineHeight: '1.4' }}>{reply.text}</p>
                   </div>
                 ))}
               </div>
-            ) : <p style={{ fontSize: '0.9rem', color: '#64748b', fontStyle: 'italic' }}>No replies from the President yet.</p>}
+            ) : <p style={{ fontSize: '0.9rem', color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>Your request is currently under review.</p>}
           </div>
         )}
       </Modal>
     </div>
   );
 };
+
+const UsersIcon = ({className}) => <User className={className} style={{color: '#3b82f6', background: '#eff6ff'}}/>;
 
 export default CRDashboard;

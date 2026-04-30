@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Bell, LogOut, Image, Camera, Eye, Plus, Send, Upload } from 'lucide-react';
+import { GraduationCap, Bell, LogOut, Image, Camera, Eye, Plus, Send, Upload, MessageSquare } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import Modal from '@/components/ui/Modal.jsx';
 import Input from '@/components/ui/Input.jsx';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
-import { useAuth } from '@/context/AuthContext.jsx'; // 🔴 LIVE USER
-import TransferRoleWidget from '@/components/TransferRoleWidget.jsx'; // 🔴 ROLE WIDGET
+import { useAuth } from '@/context/AuthContext.jsx';
+import TransferRoleWidget from '@/components/TransferRoleWidget.jsx';
 import styles from './CoMediaDashboard.module.css';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const CoMediaDashboard = () => {
   const navigate = useNavigate();
@@ -18,31 +20,32 @@ const CoMediaDashboard = () => {
   const [activeTab, setActiveTab] = useState('upload');
   const [loading, setLoading] = useState(true);
 
-  // 🔴 LIVE DATABASE STATES
   const [gallery, setGallery] = useState([]);
   const [events, setEvents] = useState([]);
   const [notifs, setNotifs] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [previewImg, setPreviewImg] = useState(null);
   const [uploadDialog, setUploadDialog] = useState(false);
   const [uploadForm, setUploadForm] = useState({ caption: '', event: '', file: null });
 
-  // 🔴 FETCH LIVE DATA
   useEffect(() => {
     const fetchCoMediaData = async () => {
       const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
       try {
         const [galRes, evRes, notifRes] = await Promise.all([
-          fetch('http://localhost:5000/api/gallery', { headers }).catch(() => ({ ok: false })),
-          fetch('http://localhost:5000/api/events', { headers }),
-          fetch('http://localhost:5000/api/notifications/all', { headers })
+          fetch(`${API_URL}/gallery`, { headers }).catch(() => ({ ok: false })),
+          fetch(`${API_URL}/events`, { headers }),
+          fetch(`${API_URL}/notifications/all`, { headers })
         ]);
 
         if (galRes.ok) setGallery(await galRes.json());
         if (evRes.ok) setEvents(await evRes.json());
         if (notifRes.ok) {
           const allNotifs = await notifRes.json();
-          setNotifs(allNotifs.filter(n => !n.targetUser || n.targetUser === currentUser?.fullName));
+          const validNotifs = allNotifs.filter(n => !n.targetUser || n.targetUser === currentUser?.fullName);
+          setNotifs(validNotifs);
+          setUnreadCount(validNotifs.filter(n => !n.read).length);
         }
       } catch (error) {
         toast({ title: 'Failed to sync data', variant: 'destructive' });
@@ -53,7 +56,6 @@ const CoMediaDashboard = () => {
     fetchCoMediaData();
   }, [currentUser, toast]);
 
-  // 🔴 IMAGE CONVERTER HELPER
   const convertToBase64 = (file) => {
     return new Promise((resolve, reject) => {
       const fileReader = new FileReader();
@@ -68,8 +70,8 @@ const CoMediaDashboard = () => {
     try {
       const base64Image = await convertToBase64(uploadForm.file);
       const payload = { caption: uploadForm.caption, event: uploadForm.event || 'General', imageBase64: base64Image, uploadedBy: currentUser?.fullName };
-      
-      const res = await fetch('http://localhost:5000/api/gallery', {
+
+      const res = await fetch(`${API_URL}/gallery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify(payload)
@@ -94,44 +96,57 @@ const CoMediaDashboard = () => {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
+      <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.headerLeft}>
             <div className={styles.headerLogo}><GraduationCap size={22} /></div>
             <div>
-              <div className={styles.headerTitle}>Co-Media Manager</div>
-              <div className={styles.headerSub}>Welcome, {currentUser?.fullName || 'Co-Media'} — Assist Media Manager</div>
+              <h1 className={styles.headerTitle}>Co-Media Manager</h1>
+              <p className={styles.headerSub}>Logged in as <strong>{currentUser?.fullName}</strong></p>
             </div>
           </div>
           <div className={styles.headerRight}>
-            <Badge variant="secondary">Co-Media</Badge>
+            <Badge variant="outline" className={styles.hideMobile}>Co-Media Access</Badge>
             <TransferRoleWidget />
-            <Button size="sm" variant="outline" onClick={() => navigate('/notifications')} style={{ position: 'relative' }}>
-              <Bell size={16} /> 
-              {notifs.filter(n => !n.read).length > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50px', padding: '2px 5px', fontSize: '0.65rem', lineHeight: 1, fontWeight: 'bold' }}>{notifs.filter(n => !n.read).length}</span>}
+
+            {/* ENTERPRISE FIX: Chat Icon */}
+            <button className={styles.iconBtn} onClick={() => navigate('/chat')} title="Messages">
+              <MessageSquare size={20} />
+            </button>
+
+            {/* ENTERPRISE FIX: Notification Icon */}
+            <button className={styles.iconBtn} onClick={() => navigate('/notifications')} title="Notifications">
+              <Bell size={20} />
+              {unreadCount > 0 && <span className={styles.notifBadge}>{unreadCount}</span>}
+            </button>
+
+            <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login'); }} className={styles.logoutBtn}>
+              <LogOut size={16} /> <span className={styles.hideMobile} style={{ marginLeft: '6px' }}>Logout</span>
             </Button>
-            <Button size="sm" variant="outline" onClick={() => { logout(); navigate('/login'); }}><LogOut size={16} /></Button>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className={styles.container}>
-        <div className={styles.tabs}>
+        <nav className={styles.tabs}>
           {tabs.map(t => (
             <button key={t.key} className={`${styles.tab} ${activeTab === t.key ? styles.tabActive : ''}`} onClick={() => setActiveTab(t.key)}>
-              <t.icon size={16} /> <span>{t.label}</span>
+              <t.icon size={16} style={{ marginRight: '6px' }} /> <span>{t.label}</span>
             </button>
           ))}
-        </div>
+        </nav>
 
         <div className={styles.content}>
           {activeTab === 'upload' && (
-            <>
-              <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 className={styles.sectionTitle}>Upload Content</h2>
-                <Button size="sm" onClick={() => setUploadDialog(true)}><Plus size={14} style={{ marginRight: '6px' }}/> Upload</Button>
+            <div className={styles.fadeEnter}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>Upload Content</h2>
+                  <p className={styles.roleDesc}>Upload photos and media content to assist the Media Manager.</p>
+                </div>
+                <Button onClick={() => setUploadDialog(true)} className={styles.actionBtn}><Plus size={16} style={{ marginRight: '6px' }} /> Upload</Button>
               </div>
-              <p className={styles.roleDesc}>Upload photos and media content to assist the Media Manager. Content will appear in the main gallery.</p>
+
               <div className={styles.galleryGrid}>
                 {gallery.slice(0, 12).map(img => (
                   <div key={img._id || img.id} className={styles.galleryItem} onClick={() => setPreviewImg(img)}>
@@ -144,13 +159,13 @@ const CoMediaDashboard = () => {
                 ))}
                 {gallery.length === 0 && <p className={styles.muted}>No recent uploads.</p>}
               </div>
-            </>
+            </div>
           )}
 
           {activeTab === 'assist' && (
-            <>
+            <div className={styles.fadeEnter}>
               <h2 className={styles.sectionTitle}>Assist Media Manager</h2>
-              <p className={styles.roleDesc}>View the full gallery and event coverage. Help the Media Manager with content tasks.</p>
+              <p className={styles.roleDesc}>View the full gallery and event coverage details.</p>
 
               <h3 className={styles.subTitle}>Full Gallery ({gallery.length} photos)</h3>
               <div className={styles.galleryGrid}>
@@ -166,7 +181,7 @@ const CoMediaDashboard = () => {
                 {gallery.length === 0 && <p className={styles.muted}>No images in gallery.</p>}
               </div>
 
-              <h3 className={styles.subTitle} style={{ marginTop: 24 }}>Events to Cover</h3>
+              <h3 className={styles.subTitle} style={{ marginTop: 40 }}>Events to Cover</h3>
               <div className={styles.cardGrid}>
                 {events.map(e => (
                   <div key={e._id || e.id} className={styles.eventCard}>
@@ -176,23 +191,31 @@ const CoMediaDashboard = () => {
                     </div>
                     <div className={styles.eventDesc}>{e.description}</div>
                     <div className={styles.eventMeta}>
-                      <Camera size={12} /> {e.date ? new Date(e.date).toLocaleDateString() : 'TBD'} · {gallery.filter(g => g.event === e.title).length} photos
+                      <Camera size={14} /> {e.date ? new Date(e.date).toLocaleDateString() : 'TBD'} • {gallery.filter(g => g.event === e.title).length} photos
                     </div>
                   </div>
                 ))}
                 {events.length === 0 && <p className={styles.muted}>No events scheduled.</p>}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
 
       <Modal open={uploadDialog} onClose={() => setUploadDialog(false)} title="Upload Content"
-        footer={<><Button variant="outline" onClick={() => setUploadDialog(false)}>Cancel</Button><Button onClick={handleUpload}><Send size={14} style={{ marginRight: '6px' }} /> Upload</Button></>}>
+        footer={<><Button variant="outline" onClick={() => setUploadDialog(false)}>Cancel</Button><Button onClick={handleUpload} style={{ backgroundColor: '#52a447' }}><Send size={14} style={{ marginRight: '6px' }} /> Upload</Button></>}>
         <div className={styles.formFields}>
           <div className={styles.field}><label>Caption *</label><Input value={uploadForm.caption} onChange={e => setUploadForm(p => ({ ...p, caption: e.target.value }))} placeholder="Describe the content" /></div>
           <div className={styles.field}><label>Event</label><Input value={uploadForm.event} onChange={e => setUploadForm(p => ({ ...p, event: e.target.value }))} placeholder="Related event name" /></div>
-          <div className={styles.field}><label>Image File *</label><input type="file" accept="image/*" onChange={e => setUploadForm(p => ({ ...p, file: e.target.files[0] }))} /></div>
+          <div className={styles.field}>
+            <label>Image File *</label>
+            <div className={styles.uploadWrap}>
+              <input type="file" accept="image/*" id="coMediaUpload" className={styles.fileInput} onChange={e => setUploadForm(p => ({ ...p, file: e.target.files[0] }))} />
+              <label htmlFor="coMediaUpload" className={styles.uploadBtn}>
+                {uploadForm.file ? uploadForm.file.name : 'Choose an image file...'}
+              </label>
+            </div>
+          </div>
         </div>
       </Modal>
 
@@ -201,10 +224,10 @@ const CoMediaDashboard = () => {
           <div className={styles.previewModal} onClick={e => e.stopPropagation()}>
             <img src={previewImg.url || previewImg.imageBase64} alt={previewImg.caption} className={styles.previewImage} style={{ maxHeight: '70vh', objectFit: 'contain' }} />
             <div className={styles.previewInfo}>
-              <div className={styles.bold}>{previewImg.caption}</div>
+              <div className={styles.previewCaption}>{previewImg.caption}</div>
               <div className={styles.muted}>{previewImg.event}</div>
             </div>
-            <Button size="sm" variant="outline" onClick={() => setPreviewImg(null)}>Close</Button>
+            <div style={{ padding: '0 20px 20px' }}><Button size="sm" variant="outline" onClick={() => setPreviewImg(null)}>Close</Button></div>
           </div>
         </div>
       )}

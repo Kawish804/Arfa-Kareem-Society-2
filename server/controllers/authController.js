@@ -25,9 +25,9 @@ exports.getAvailableRoles = async (req, res) => {
         ];
 
         // ENTERPRISE FIX: Only consider a role "taken" if the user is actually approved by an admin.
-        const takenRoles = await User.distinct('role', { 
+        const takenRoles = await User.distinct('role', {
             role: { $in: singletonRoles },
-            isApproved: true 
+            isApproved: true
         });
 
         const availableSingletonRoles = singletonRoles.filter(role => !takenRoles.includes(role));
@@ -62,12 +62,12 @@ exports.signup = async (req, res) => {
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-        
+
         // ENTERPRISE FIX: Cryptographically secure random number
         const generatedMembershipId = crypto.randomInt(100000, 999999).toString();
 
         const newUser = new User({
-            fullName, email, phone, password: hashedPassword, 
+            fullName, email, phone, password: hashedPassword,
             role: newRoles, department, semester, rollNo, timing, batch, reason,
             membershipId: generatedMembershipId, isActive: false, isApproved: false
         });
@@ -112,7 +112,7 @@ exports.login = async (req, res) => {
         }
 
         if (!user.isApproved && !isPresident) {
-             return res.status(403).json({ message: "Your account is pending admin approval." });
+            return res.status(403).json({ message: "Your account is pending admin approval." });
         }
 
         const token = jwt.sign(
@@ -136,11 +136,11 @@ exports.login = async (req, res) => {
 exports.activateAccount = async (req, res) => {
     try {
         const { membershipId, email } = req.body;
-        
+
         // ENTERPRISE FIX: Query by BOTH email and membershipId to avoid 6-digit collisions
-        const user = await User.findOne({ 
+        const user = await User.findOne({
             email: email.trim().toLowerCase(),
-            membershipId: membershipId.trim() 
+            membershipId: membershipId.trim()
         });
 
         if (!user) return res.status(404).json({ message: "Invalid Membership ID or Email mismatch." });
@@ -148,9 +148,9 @@ exports.activateAccount = async (req, res) => {
 
         user.isActive = true;
         // Optionally, clear the membershipId here so it can't be reused
-        user.membershipId = null; 
+        user.membershipId = null;
         await user.save();
-        
+
         res.status(200).json({ message: "Account activated." });
     } catch (error) {
         res.status(500).json({ error: "Server error." });
@@ -188,8 +188,8 @@ exports.transferRole = async (req, res) => {
         }
 
         const roleToTransfer = currentRoles[0] || 'Student';
-        targetUser.role = [roleToTransfer]; 
-        currentUser.role = ['Student'];     
+        targetUser.role = [roleToTransfer];
+        currentUser.role = ['Student'];
 
         await targetUser.save();
         await currentUser.save();
@@ -197,5 +197,120 @@ exports.transferRole = async (req, res) => {
         res.status(200).json({ message: `Successfully transferred ${roleToTransfer} to ${targetUser.fullName}.` });
     } catch (error) {
         res.status(500).json({ error: "Server error during role transfer." });
+    }
+};
+// Add crypto to the top of your authController.js if you haven't already
+// const crypto = require('crypto');
+
+// ==========================================
+// 1. FORGOT PASSWORD (SEND OTP)
+// ==========================================
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+        // If no user is found, throw a 404 so the frontend can show the polite message
+        if (!user) {
+            return res.status(404).json({ message: "Account not found." });
+        }
+
+        // Generate a 6-digit OTP
+        const resetOtp = crypto.randomInt(100000, 999999).toString();
+
+        // Save OTP and expiration time (15 minutes from now)
+        user.resetPasswordOtp = resetOtp;
+        user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
+        await user.save();
+
+        // Send Email
+        const mailOptions = {
+            from: `"Arfa Kareem Society" <${process.env.EMAIL_USER}>`,
+            to: user.email,
+            subject: 'Password Reset Code - Arfa Kareem Society',
+            html: `
+                <div style="font-family: sans-serif; text-align: center; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
+                    <h2 style="color: #0f172a;">Password Reset Request</h2>
+                    <p style="color: #475569; margin-bottom: 20px;">You requested to reset your password. Use the following code to continue. This code will expire in 15 minutes.</p>
+                    <h1 style="background: #ffffff; border: 1px solid #e2e8f0; padding: 15px; letter-spacing: 5px; color: #52a447; border-radius: 8px; display: inline-block;">${resetOtp}</h1>
+                    <p style="color: #94a3b8; font-size: 0.8rem; margin-top: 20px;">If you did not request this, you can safely ignore this email.</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.status(200).json({ message: "Reset code sent to email." });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Server error." });
+    }
+};
+
+// ==========================================
+// 2. VERIFY RESET OTP
+// ==========================================
+exports.verifyResetOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        const user = await User.findOne({
+            email: email.toLowerCase().trim(),
+            resetPasswordOtp: otp.trim(),
+            resetPasswordExpires: { $gt: Date.now() } // Ensure it hasn't expired
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: "Invalid or expired verification code." });
+        }
+
+        res.status(200).json({ message: "OTP verified successfully." });
+    } catch (error) {
+        res.status(500).json({ message: "Server error." });
+    }
+};
+
+// ==========================================
+// 3. SET NEW PASSWORD
+// ==========================================
+exports.resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        // Verify one last time to be safe
+        const user = await User.findOne({
+            email: email.toLowerCase().trim(),
+            resetPasswordOtp: otp.trim(),
+            resetPasswordExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: "Invalid or expired verification code." });
+        }
+
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+
+        // Clear the OTP fields so they can't be reused
+        user.resetPasswordOtp = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        res.status(200).json({ message: "Password has been reset successfully." });
+    } catch (error) {
+        res.status(500).json({ message: "Server error." });
+    }
+};
+// ==========================================
+// GET ALL SOCIETY MEMBERS (For GS / Board)
+// ==========================================
+exports.getAllUsers = async (req, res) => {
+    try {
+        // Fetch all users but completely exclude passwords for security
+        const users = await User.find().select('-password').sort({ createdAt: -1 });
+        res.status(200).json(users);
+    } catch (error) {
+        res.status(500).json({ error: "Server error fetching users." });
     }
 };

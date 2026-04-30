@@ -1,7 +1,11 @@
-.page {
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+.pageWrap {
   min-height: 100vh;
   background: #f8fafc;
-  font-family: "Inter", sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
 }
 
 .fadeEnter {
@@ -25,11 +29,11 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
 }
 
 .headerInner {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 16px 24px;
   display: flex;
@@ -47,24 +51,25 @@
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  background: linear-gradient(135deg, #52a447, #458e3c);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 4px 10px rgba(82, 164, 71, 0.2);
 }
 
 .headerTitle {
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 800;
   color: #0f172a;
-  margin-bottom: 2px;
+  margin: 0 0 2px 0;
 }
 
 .headerSub {
   font-size: 0.85rem;
   color: #64748b;
+  margin: 0;
 }
 
 .headerRight {
@@ -73,28 +78,56 @@
   gap: 12px;
 }
 
-.notifBtn {
-  position: relative;
+.iconBtn {
+  background: none;
+  border: none;
+  color: #64748b;
   padding: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.notifBadge {
+.iconBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.badgeAlert {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: 0;
+  right: 0;
   background: #ef4444;
   color: white;
   border-radius: 50px;
   padding: 2px 6px;
   font-size: 0.65rem;
+  line-height: 1;
   font-weight: 700;
   border: 2px solid white;
 }
 
+.logoutBtn {
+  color: #64748b;
+  border-color: #e2e8f0;
+  margin-left: 8px;
+}
+
+.logoutBtn:hover {
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
 .container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 32px 24px;
+  width: 100%;
 }
 
 .tabs {
@@ -103,16 +136,16 @@
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 6px;
+  padding: 8px;
   margin-bottom: 32px;
-  width: max-content;
+  overflow-x: auto;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  width: max-content;
 }
 
 .tab {
   display: flex;
   align-items: center;
-  gap: 8px;
   padding: 10px 20px;
   border: none;
   background: transparent;
@@ -121,6 +154,7 @@
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.2s;
 }
 
@@ -141,36 +175,32 @@
 }
 
 .content {
-  min-height: 400px;
+  min-height: 500px;
 }
 
 .sectionHeader {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
   margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .sectionTitle {
   font-size: 1.5rem;
   font-weight: 800;
   color: #0f172a;
-  margin: 0 0 8px 0;
+  margin: 0 0 4px 0;
 }
 
-.roleDesc {
+.sectionDesc {
   font-size: 0.95rem;
   color: #64748b;
   margin: 0;
 }
 
-.subTitle {
-  font-size: 1.15rem;
-  font-weight: 700;
-  margin: 32px 0 16px;
-  color: #0f172a;
-}
-
+/* STATS GRID */
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -195,7 +225,7 @@
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
 }
 
-.statIconWrap {
+.statIcon {
   width: 56px;
   height: 56px;
   border-radius: 14px;
@@ -205,18 +235,19 @@
   flex-shrink: 0;
 }
 
+.statGreen .statIcon {
+  background: #eef8ed;
+  color: #52a447;
+}
+.statYellow .statIcon {
+  background: #fef3c7;
+  color: #d97706;
+}
+
 .statInfo {
   display: flex;
   flex-direction: column;
 }
-
-.statVal {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.2;
-}
-
 .statLabel {
   font-size: 0.85rem;
   color: #64748b;
@@ -225,11 +256,18 @@
   letter-spacing: 0.5px;
   margin-bottom: 4px;
 }
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
 
+/* TABLES */
 .tableWrap {
   background: white;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
   overflow-x: auto;
 }
@@ -237,47 +275,57 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
 }
-
 .table th {
   text-align: left;
   padding: 16px 20px;
   font-weight: 600;
   color: #475569;
+  font-size: 0.85rem;
+  text-transform: uppercase;
   background: #f8fafc;
   border-bottom: 2px solid #e2e8f0;
 }
-
 .table td {
   padding: 16px 20px;
   border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
 }
-
 .table tbody tr {
   transition: background-color 0.2s;
-}
-
-.table tbody tr:last-child td {
-  border-bottom: none;
 }
 .table tbody tr:hover {
   background: #f8fafc;
 }
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rowDebt {
+  background-color: #fffbfa;
+}
+.rowDebt:hover {
+  background-color: #fef2f2 !important;
+}
 
 .bold {
-  font-weight: 600;
+  font-weight: 700;
   color: #0f172a;
+  font-size: 0.95rem;
 }
-.muted {
+.amountText {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #52a447;
+}
+.mutedInfo {
   color: #64748b;
   font-size: 0.85rem;
 }
 
-.empty {
+.emptyTable {
   text-align: center;
-  padding: 40px 20px !important;
+  padding: 60px 20px !important;
   color: #94a3b8;
   font-style: italic;
 }
@@ -285,15 +333,13 @@
 .formFields {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
-
 .field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
-
 .field label {
   font-size: 0.85rem;
   font-weight: 600;
@@ -307,14 +353,15 @@
   justify-content: center;
   padding: 80px 20px;
   color: #64748b;
-  gap: 16px;
-  font-weight: 500;
 }
-
+.loadingState h2 {
+  color: #0f172a;
+  margin: 16px 0 8px 0;
+  font-weight: 800;
+}
 .spin {
   animation: spin 1s linear infinite;
 }
-
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -324,21 +371,19 @@
   }
 }
 
+.hideMobile {
+  display: block;
+}
 @media (max-width: 768px) {
   .headerInner {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
   }
+  .hideMobile {
+    display: none !important;
+  }
   .tabs {
-    width: 100%;
-    overflow-x: auto;
-  }
-  .sectionHeader {
-    flex-direction: column;
-    gap: 16px;
-  }
-  .sectionHeader button {
     width: 100%;
   }
 }

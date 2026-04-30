@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Removed unused imports to prevent strict ESLint compilation errors
-import { Image, Camera, Bell, LogOut, Plus, Send, Share2, Eye, Trash2, ExternalLink, FileImage } from 'lucide-react';
+import { Image, Camera, Bell, LogOut, Plus, Send, Share2, Eye, Trash2, ExternalLink, FileImage, MessageSquare, Loader2 } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import Modal from '@/components/ui/Modal.jsx';
@@ -9,9 +8,11 @@ import Input from '@/components/ui/Input.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
 import Select from '@/components/ui/Select.jsx';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
-import { useAuth } from '@/context/AuthContext.jsx'; 
-import TransferRoleWidget from '@/components/TransferRoleWidget.jsx'; 
+import { useAuth } from '@/context/AuthContext.jsx';
+import TransferRoleWidget from '@/components/TransferRoleWidget.jsx';
 import styles from './MediaPRDashboard.module.css';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const MediaPRDashboard = () => {
   const navigate = useNavigate();
@@ -20,13 +21,16 @@ const MediaPRDashboard = () => {
 
   const [activeTab, setActiveTab] = useState('gallery');
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🔴 LIVE DATABASE STATES (Initialized strictly as Arrays)
+  // LIVE DATABASE STATES
   const [gallery, setGallery] = useState([]);
   const [posts, setPosts] = useState([]);
   const [calendar, setCalendar] = useState([]);
   const [events, setEvents] = useState([]);
+
   const [notifs, setNotifs] = useState([]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   // Dialogs
   const [uploadDialog, setUploadDialog] = useState(false);
@@ -37,33 +41,36 @@ const MediaPRDashboard = () => {
   const [calForm, setCalForm] = useState({ title: '', platform: 'All', date: '', type: 'Post', assigned: '' });
   const [previewImg, setPreviewImg] = useState(null);
 
-  // 🔴 FETCH LIVE DATA WITH BULLETPROOF ERROR HANDLING
   useEffect(() => {
     const fetchMediaData = async () => {
       const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
       try {
-        const [galRes, postRes, calRes, evRes, notifRes] = await Promise.all([
-          fetch('http://localhost:5000/api/gallery', { headers }).catch(() => ({ ok: false })),
-          fetch('http://localhost:5000/api/social-posts', { headers }).catch(() => ({ ok: false })),
-          fetch('http://localhost:5000/api/content-calendar', { headers }).catch(() => ({ ok: false })),
-          fetch('http://localhost:5000/api/events', { headers }).catch(() => ({ ok: false })),
-          fetch('http://localhost:5000/api/notifications/all', { headers }).catch(() => ({ ok: false }))
+        const [galRes, postRes, calRes, evRes, notifRes, chatRes] = await Promise.all([
+          fetch(`${API_URL}/gallery`, { headers }).catch(() => ({ ok: false })),
+          fetch(`${API_URL}/social-posts`, { headers }).catch(() => ({ ok: false })),
+          fetch(`${API_URL}/content-calendar`, { headers }).catch(() => ({ ok: false })),
+          fetch(`${API_URL}/events`, { headers }).catch(() => ({ ok: false })),
+          fetch(`${API_URL}/notifications/all`, { headers }).catch(() => ({ ok: false })),
+          fetch(`${API_URL}/messages/my-messages`, { headers }).catch(() => ({ ok: false }))
         ]);
 
-        // Safety Net: Ensure we only set the state if the response is actually an Array!
         if (galRes.ok) { const data = await galRes.json(); setGallery(Array.isArray(data) ? data : []); }
         if (postRes.ok) { const data = await postRes.json(); setPosts(Array.isArray(data) ? data : []); }
         if (calRes.ok) { const data = await calRes.json(); setCalendar(Array.isArray(data) ? data : []); }
         if (evRes.ok) { const data = await evRes.json(); setEvents(Array.isArray(data) ? data : []); }
-        
+
         if (notifRes.ok) {
           const allNotifs = await notifRes.json();
-          if (Array.isArray(allNotifs)) {
-            setNotifs(allNotifs.filter(n => !n.targetUser || n.targetUser === currentUser?.fullName));
-          }
+          if (Array.isArray(allNotifs)) setNotifs(allNotifs.filter(n => !n.targetUser || n.targetUser === currentUser?.fullName));
+        }
+
+        if (chatRes.ok) {
+          const msgs = await chatRes.json();
+          const myId = currentUser?._id || currentUser?.id;
+          setUnreadChatCount(msgs.filter(m => !m.read && m.receiver === myId).length);
         }
       } catch (error) {
-        toast({ title: 'Failed to sync data', description: 'Check backend connection', variant: 'destructive' });
+        toast({ title: 'Sync Error', description: 'Failed to connect to media servers.', variant: 'destructive' });
       } finally {
         setLoading(false);
       }
@@ -71,7 +78,6 @@ const MediaPRDashboard = () => {
     fetchMediaData();
   }, [currentUser, toast]);
 
-  // 🔴 IMAGE CONVERTER HELPER
   const convertToBase64 = (file) => {
     return new Promise((resolve, reject) => {
       const fileReader = new FileReader();
@@ -81,14 +87,14 @@ const MediaPRDashboard = () => {
     });
   };
 
-  // 🔴 API ACTIONS
   const handleUpload = async () => {
-    if (!uploadForm.caption || !uploadForm.file) { toast({ title: 'Caption and Image required', variant: 'destructive' }); return; }
+    if (!uploadForm.caption.trim() || !uploadForm.file) { toast({ title: 'Validation Error', description: 'Caption and Image required.', variant: 'destructive' }); return; }
+    setIsSubmitting(true);
     try {
       const base64Image = await convertToBase64(uploadForm.file);
-      const payload = { caption: uploadForm.caption, event: uploadForm.event || 'General', imageBase64: base64Image, uploadedBy: currentUser?.fullName };
-      
-      const res = await fetch('http://localhost:5000/api/gallery', {
+      const payload = { caption: uploadForm.caption.trim(), event: uploadForm.event || 'General', imageBase64: base64Image, uploadedBy: currentUser?.fullName };
+
+      const res = await fetch(`${API_URL}/gallery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify(payload)
@@ -97,72 +103,77 @@ const MediaPRDashboard = () => {
       if (res.ok) {
         const newImg = await res.json();
         setGallery(prev => [newImg, ...(Array.isArray(prev) ? prev : [])]);
-        toast({ title: 'Image uploaded successfully' });
+        toast({ title: 'Success', description: 'Image uploaded to the gallery.' });
         setUploadDialog(false);
         setUploadForm({ caption: '', event: '', file: null });
       } else throw new Error();
-    } catch (err) { toast({ title: 'Upload failed', variant: 'destructive' }); }
+    } catch (err) { toast({ title: 'Upload failed', description: 'Image might be too large.', variant: 'destructive' }); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleDeleteImage = async (id) => {
-    if(!window.confirm("Are you sure you want to delete this image?")) return;
+    if (!window.confirm("Are you sure you want to completely delete this image?")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/gallery/${id}`, {
+      const res = await fetch(`${API_URL}/gallery/${id}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` }
       });
       if (res.ok) {
         setGallery(prev => (Array.isArray(prev) ? prev : []).filter(g => (g._id || g.id) !== id));
-        toast({ title: 'Image removed' });
+        toast({ title: 'Success', description: 'Image permanently removed.' });
       } else throw new Error();
     } catch (err) { toast({ title: 'Delete failed', variant: 'destructive' }); }
   };
 
   const handleAddPost = async () => {
-    if (!postForm.content) { toast({ title: 'Content required', variant: 'destructive' }); return; }
+    if (!postForm.content.trim()) { toast({ title: 'Validation Error', description: 'Content is required.', variant: 'destructive' }); return; }
+    setIsSubmitting(true);
     try {
       const payload = { ...postForm, author: currentUser?.fullName };
-      const res = await fetch('http://localhost:5000/api/social-posts', {
+      const res = await fetch(`${API_URL}/social-posts`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify(payload)
       });
       if (res.ok) {
         const newPost = await res.json();
         setPosts(prev => [newPost, ...(Array.isArray(prev) ? prev : [])]);
-        toast({ title: 'Post created' });
+        toast({ title: 'Success', description: 'Social post drafted.' });
         setPostDialog(false);
         setPostForm({ platform: 'Instagram', content: '', status: 'Draft' });
       } else throw new Error();
-    } catch (err) { toast({ title: 'Failed to create post', variant: 'destructive' }); }
+    } catch (err) { toast({ title: 'Error', description: 'Failed to create post.', variant: 'destructive' }); }
+    finally { setIsSubmitting(false); }
   };
 
   const publishPost = async (id) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/social-posts/${id}`, {
+      const res = await fetch(`${API_URL}/social-posts/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify({ status: 'Published', date: new Date().toISOString().split('T')[0] })
       });
       if (res.ok) {
         setPosts(prev => (Array.isArray(prev) ? prev : []).map(p => (p._id || p.id) === id ? { ...p, status: 'Published', date: new Date().toISOString().split('T')[0] } : p));
-        toast({ title: 'Post published!' });
+        toast({ title: 'Success', description: 'Post published!' });
       } else throw new Error();
-    } catch (err) { toast({ title: 'Failed to publish', variant: 'destructive' }); }
+    } catch (err) { toast({ title: 'Publish Error', variant: 'destructive' }); }
   };
 
   const handleAddCalEntry = async () => {
-    if (!calForm.title || !calForm.date) { toast({ title: 'Title and date required', variant: 'destructive' }); return; }
+    if (!calForm.title.trim() || !calForm.date) { toast({ title: 'Validation Error', description: 'Title and date required.', variant: 'destructive' }); return; }
+    setIsSubmitting(true);
     try {
-      const res = await fetch('http://localhost:5000/api/content-calendar', {
+      const res = await fetch(`${API_URL}/content-calendar`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('token')}` },
         body: JSON.stringify(calForm)
       });
       if (res.ok) {
         const newEntry = await res.json();
         setCalendar(prev => [newEntry, ...(Array.isArray(prev) ? prev : [])]);
-        toast({ title: 'Calendar entry added' });
+        toast({ title: 'Success', description: 'Calendar entry added.' });
         setCalDialog(false);
         setCalForm({ title: '', platform: 'All', date: '', type: 'Post', assigned: '' });
       } else throw new Error();
-    } catch (err) { toast({ title: 'Failed to add entry', variant: 'destructive' }); }
+    } catch (err) { toast({ title: 'Error', description: 'Failed to schedule entry.', variant: 'destructive' }); }
+    finally { setIsSubmitting(false); }
   };
 
   const tabs = [
@@ -179,27 +190,43 @@ const MediaPRDashboard = () => {
     return '';
   };
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center', color: '#64748b' }}>Syncing Media Workspace...</div>;
+  if (loading) {
+    return (
+      <div className={styles.loadingState}>
+        <Loader2 className={styles.spin} size={48} />
+        <h2>Syncing Media Workspace...</h2>
+      </div>
+    );
+  }
 
   return (
-    <div className={styles.page}>
+    <div className={styles.pageWrap}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.headerLeft}>
-            <div className={styles.headerLogo}><Camera size={20} /></div>
+            <div className={styles.headerLogo}><Camera size={22} /></div>
             <div>
               <h1 className={styles.headerTitle}>Media & PR</h1>
-              <p className={styles.headerSub}>Welcome, {currentUser?.fullName || 'Media Head'}</p>
+              <p className={styles.headerSub}>Logged in as <strong>{currentUser?.fullName}</strong></p>
             </div>
           </div>
           <div className={styles.headerRight}>
-            <Badge variant="default">Media/PR Head</Badge>
+            <Badge variant="outline" className={styles.hideMobile}>Media Head Access</Badge>
             <TransferRoleWidget />
-            <Button variant="outline" size="sm" onClick={() => navigate('/notifications')} style={{ position: 'relative' }}>
-              <Bell size={14} />
-              {notifs.filter(n => !n.read).length > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50px', padding: '2px 5px', fontSize: '0.65rem', lineHeight: 1, fontWeight: 'bold' }}>{notifs.filter(n => !n.read).length}</span>}
+
+            <button className={styles.iconBtn} onClick={() => navigate('/chat')} title="Messages">
+              <MessageSquare size={20} />
+              {unreadChatCount > 0 && <span className={styles.badgeAlert}>{unreadChatCount}</span>}
+            </button>
+
+            <button className={styles.iconBtn} onClick={() => navigate('/notifications')} title="Notifications">
+              <Bell size={20} />
+              {notifs.filter(n => !n.read).length > 0 && <span className={styles.badgeAlert}>{notifs.filter(n => !n.read).length}</span>}
+            </button>
+
+            <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login'); }} className={styles.logoutBtn}>
+              <LogOut size={16} /> <span className={styles.hideMobile} style={{ marginLeft: '6px' }}>Logout</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login'); }}><LogOut size={14} /> Logout</Button>
           </div>
         </div>
       </header>
@@ -208,17 +235,20 @@ const MediaPRDashboard = () => {
         <nav className={styles.tabs}>
           {tabs.map(t => (
             <button key={t.id} className={`${styles.tab} ${activeTab === t.id ? styles.tabActive : ''}`} onClick={() => setActiveTab(t.id)}>
-              <t.icon size={16} /><span>{t.label}</span>
+              <t.icon size={16} style={{ marginRight: '6px' }} /><span>{t.label}</span>
             </button>
           ))}
         </nav>
 
         <div className={styles.content}>
           {activeTab === 'gallery' && (
-            <div>
+            <div className={styles.fadeEnter}>
               <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Photo Gallery</h2>
-                <Button size="sm" onClick={() => setUploadDialog(true)}><Plus size={14} style={{ marginRight: '6px' }} /> Upload Image</Button>
+                <div>
+                  <h2 className={styles.sectionTitle}>Photo Gallery</h2>
+                  <p className={styles.sectionDesc}>Manage and upload society photos.</p>
+                </div>
+                <Button onClick={() => setUploadDialog(true)} style={{ backgroundColor: '#52a447' }}><Plus size={16} style={{ marginRight: '6px' }} /> Upload Image</Button>
               </div>
               <div className={styles.galleryGrid}>
                 {gallery.map(img => (
@@ -227,23 +257,26 @@ const MediaPRDashboard = () => {
                     <div className={styles.galleryOverlay}>
                       <span className={styles.galleryCaption}>{img.caption}</span>
                       <div className={styles.galleryActions}>
-                        <button className={styles.iconBtn} onClick={() => setPreviewImg(img)}><Eye size={14} /></button>
-                        <button className={styles.iconBtn} onClick={() => handleDeleteImage(img._id || img.id)}><Trash2 size={14} /></button>
+                        <button className={styles.overlayIconBtn} onClick={() => setPreviewImg(img)}><Eye size={16} /></button>
+                        <button className={styles.overlayIconBtn} onClick={() => handleDeleteImage(img._id || img.id)} style={{ color: '#fca5a5' }}><Trash2 size={16} /></button>
                       </div>
                     </div>
-                    <Badge variant="secondary" className={styles.galleryBadge}>{img.event}</Badge>
+                    <div className={styles.galleryBadge}>{img.event}</div>
                   </div>
                 ))}
-                {gallery.length === 0 && <p className={styles.muted}>No images in gallery.</p>}
+                {gallery.length === 0 && <p className={styles.emptyTable}>No images in gallery.</p>}
               </div>
             </div>
           )}
 
           {activeTab === 'social' && (
-            <div>
+            <div className={styles.fadeEnter}>
               <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Social Media Posts</h2>
-                <Button size="sm" onClick={() => setPostDialog(true)}><Plus size={14} style={{ marginRight: '6px' }} /> Create Post</Button>
+                <div>
+                  <h2 className={styles.sectionTitle}>Social Media Posts</h2>
+                  <p className={styles.sectionDesc}>Draft and schedule posts across platforms.</p>
+                </div>
+                <Button onClick={() => setPostDialog(true)} style={{ backgroundColor: '#52a447' }}><Plus size={16} style={{ marginRight: '6px' }} /> Create Post</Button>
               </div>
               <div className={styles.postStats}>
                 <div className={styles.pStat}><span className={styles.pStatNum}>{posts.filter(p => p.status === 'Published').length}</span><span className={styles.pStatLabel}>Published</span></div>
@@ -255,26 +288,29 @@ const MediaPRDashboard = () => {
                   <div key={p._id || p.id} className={styles.postCard}>
                     <div className={styles.postTop}>
                       <span className={`${styles.platformTag} ${platformColor(p.platform)}`}>{p.platform}</span>
-                      <Badge variant={p.status === 'Published' ? 'default' : p.status === 'Scheduled' ? 'secondary' : 'outline'}>{p.status}</Badge>
+                      <Badge variant={p.status === 'Published' ? 'success' : p.status === 'Scheduled' ? 'secondary' : 'warning'}>{p.status}</Badge>
                     </div>
                     <p className={styles.postContent}>{p.content}</p>
                     <div className={styles.postMeta}>
-                      <span className={styles.muted}>{p.date || (p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A')}</span>
-                      {p.engagement && p.engagement !== '—' && <span className={styles.muted}>{p.engagement}</span>}
+                      <span>{p.date || (p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A')}</span>
+                      {p.engagement && p.engagement !== '—' && <span>{p.engagement}</span>}
                     </div>
-                    {p.status !== 'Published' && <Button size="sm" onClick={() => publishPost(p._id || p.id)} className={styles.publishBtn}><ExternalLink size={13} style={{ marginRight: '6px' }} /> Publish</Button>}
+                    {p.status !== 'Published' && <Button size="sm" variant="outline" onClick={() => publishPost(p._id || p.id)} style={{ marginTop: '16px', width: '100%', borderColor: '#52a447', color: '#52a447' }}><ExternalLink size={14} style={{ marginRight: '6px' }} /> Publish Now</Button>}
                   </div>
                 ))}
-                {posts.length === 0 && <p className={styles.muted}>No posts available.</p>}
+                {posts.length === 0 && <p className={styles.emptyTable}>No posts available.</p>}
               </div>
             </div>
           )}
 
           {activeTab === 'calendar' && (
-            <div>
+            <div className={styles.fadeEnter}>
               <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Content Calendar</h2>
-                <Button size="sm" onClick={() => setCalDialog(true)}><Plus size={14} style={{ marginRight: '6px' }} /> Add Entry</Button>
+                <div>
+                  <h2 className={styles.sectionTitle}>Content Calendar</h2>
+                  <p className={styles.sectionDesc}>Plan out the content strategy for the month.</p>
+                </div>
+                <Button onClick={() => setCalDialog(true)} style={{ backgroundColor: '#52a447' }}><Plus size={16} style={{ marginRight: '6px' }} /> Add Entry</Button>
               </div>
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
@@ -284,12 +320,12 @@ const MediaPRDashboard = () => {
                       <tr key={c._id || c.id}>
                         <td className={styles.bold}>{c.title}</td>
                         <td><span className={`${styles.platformTag} ${platformColor(c.platform)}`}>{c.platform}</span></td>
-                        <td className={styles.muted}>{c.date ? new Date(c.date).toLocaleDateString() : 'N/A'}</td>
-                        <td><Badge variant="secondary">{c.type}</Badge></td>
-                        <td className={styles.muted}>{c.assigned}</td>
+                        <td className={styles.mutedInfo}>{c.date ? new Date(c.date).toLocaleDateString() : 'N/A'}</td>
+                        <td><Badge variant="outline">{c.type}</Badge></td>
+                        <td className={styles.mutedInfo}>{c.assigned}</td>
                       </tr>
                     ))}
-                    {calendar.length === 0 && <tr><td colSpan={5} style={{textAlign:'center', padding:'20px'}}>No calendar entries.</td></tr>}
+                    {calendar.length === 0 && <tr><td colSpan={5} className={styles.emptyTable}>No calendar entries.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -297,7 +333,7 @@ const MediaPRDashboard = () => {
           )}
 
           {activeTab === 'coverage' && (
-            <div>
+            <div className={styles.fadeEnter}>
               <h2 className={styles.sectionTitle}>Event Coverage</h2>
               <div className={styles.coverageGrid}>
                 {events.map(e => {
@@ -307,13 +343,13 @@ const MediaPRDashboard = () => {
                       <h3 className={styles.coverageTitle}>{e.title}</h3>
                       <div className={styles.coverageMeta}>
                         <Badge variant={e.status === 'Upcoming' ? 'default' : 'secondary'}>{e.status}</Badge>
-                        <span className={styles.muted}>{e.date ? new Date(e.date).toLocaleDateString() : 'TBD'}</span>
+                        <span>{e.date ? new Date(e.date).toLocaleDateString() : 'TBD'}</span>
                       </div>
                       <div className={styles.coveragePhotos}>
-                        <Camera size={14} />
-                        <span className={styles.muted}>{eventPhotos.length} photos</span>
+                        <Camera size={14} style={{ marginRight: '6px' }} />
+                        {eventPhotos.length} photos captured
                       </div>
-                      <p className={styles.muted}>{e.description}</p>
+                      <p className={styles.mutedInfo} style={{ marginTop: '12px' }}>{e.description}</p>
                     </div>
                   );
                 })}
@@ -323,53 +359,66 @@ const MediaPRDashboard = () => {
         </div>
       </div>
 
-      {/* Upload Modal */}
-      <Modal open={uploadDialog} onClose={() => setUploadDialog(false)} title="Upload Image"
-        footer={<><Button variant="outline" onClick={() => setUploadDialog(false)}>Cancel</Button><Button onClick={handleUpload}><Send size={14} style={{ marginRight: '6px' }}/> Upload</Button></>}>
+      {/* MODALS */}
+      <Modal open={uploadDialog} onClose={() => !isSubmitting && setUploadDialog(false)} title="Upload Image"
+        footer={<div style={{ display: 'flex', gap: '8px', width: '100%', justifyContent: 'flex-end' }}><Button variant="outline" onClick={() => setUploadDialog(false)} disabled={isSubmitting}>Cancel</Button><Button onClick={handleUpload} disabled={isSubmitting} style={{ backgroundColor: '#52a447' }}>{isSubmitting ? <><Loader2 size={16} className={styles.spin} style={{ marginRight: '6px' }} /> Uploading...</> : <><Send size={14} style={{ marginRight: '6px' }} /> Upload</>}</Button></div>}>
         <div className={styles.formFields}>
-          <div className={styles.field}><label>Caption *</label><Input value={uploadForm.caption} onChange={e => setUploadForm(p => ({ ...p, caption: e.target.value }))} placeholder="Image caption" /></div>
-          <div className={styles.field}><label>Event</label><Input value={uploadForm.event} onChange={e => setUploadForm(p => ({ ...p, event: e.target.value }))} placeholder="Related event name" /></div>
-          <div className={styles.field}><label>Image File *</label><input type="file" accept="image/*" onChange={e => setUploadForm(p => ({ ...p, file: e.target.files[0] }))} /></div>
+          <div className={styles.field}><label>Caption <span style={{ color: 'red' }}>*</span></label><Input value={uploadForm.caption} onChange={e => setUploadForm(p => ({ ...p, caption: e.target.value }))} placeholder="Image caption" disabled={isSubmitting} /></div>
+          <div className={styles.field}><label>Event</label><Input value={uploadForm.event} onChange={e => setUploadForm(p => ({ ...p, event: e.target.value }))} placeholder="Related event name" disabled={isSubmitting} /></div>
+          <div className={styles.field}>
+            <label>Image File <span style={{ color: 'red' }}>*</span></label>
+            <div className={styles.uploadWrap}>
+              <input type="file" accept="image/*" id="prUpload" className={styles.fileInput} onChange={e => setUploadForm(p => ({ ...p, file: e.target.files[0] }))} disabled={isSubmitting} />
+              <label htmlFor="prUpload" className={`${styles.uploadBtn} ${isSubmitting ? styles.disabled : ''}`}>
+                {uploadForm.file ? uploadForm.file.name : 'Choose an image file...'}
+              </label>
+            </div>
+          </div>
         </div>
       </Modal>
 
-      {/* Post Modal */}
-      <Modal open={postDialog} onClose={() => setPostDialog(false)} title="Create Social Media Post"
-        footer={<><Button variant="outline" onClick={() => setPostDialog(false)}>Cancel</Button><Button onClick={handleAddPost}><Send size={14} style={{ marginRight: '6px' }}/> Create</Button></>}>
+      <Modal open={postDialog} onClose={() => !isSubmitting && setPostDialog(false)} title="Create Social Media Post"
+        footer={<div style={{ display: 'flex', gap: '8px', width: '100%', justifyContent: 'flex-end' }}><Button variant="outline" onClick={() => setPostDialog(false)} disabled={isSubmitting}>Cancel</Button><Button onClick={handleAddPost} disabled={isSubmitting} style={{ backgroundColor: '#52a447' }}>{isSubmitting ? <><Loader2 size={16} className={styles.spin} style={{ marginRight: '6px' }} /> Saving...</> : <><Send size={14} style={{ marginRight: '6px' }} /> Create Post</>}</Button></div>}>
         <div className={styles.formFields}>
-          <div className={styles.field}><label>Platform</label><Select value={postForm.platform} onChange={e => setPostForm(p => ({ ...p, platform: e.target.value }))}>
+          <div className={styles.field}><label>Platform</label><Select value={postForm.platform} onChange={e => setPostForm(p => ({ ...p, platform: e.target.value }))} disabled={isSubmitting}>
             <option value="Instagram">Instagram</option><option value="Facebook">Facebook</option><option value="LinkedIn">LinkedIn</option><option value="Twitter">Twitter</option>
           </Select></div>
-          <div className={styles.field}><label>Content *</label><Textarea value={postForm.content} onChange={e => setPostForm(p => ({ ...p, content: e.target.value }))} placeholder="Write your post..." rows={4} /></div>
-          <div className={styles.field}><label>Status</label><Select value={postForm.status} onChange={e => setPostForm(p => ({ ...p, status: e.target.value }))}>
+          <div className={styles.field}><label>Content <span style={{ color: 'red' }}>*</span></label><Textarea value={postForm.content} onChange={e => setPostForm(p => ({ ...p, content: e.target.value }))} placeholder="Write your post..." rows={4} disabled={isSubmitting} /></div>
+          <div className={styles.field}><label>Status</label><Select value={postForm.status} onChange={e => setPostForm(p => ({ ...p, status: e.target.value }))} disabled={isSubmitting}>
             <option value="Draft">Draft</option><option value="Scheduled">Scheduled</option><option value="Published">Published</option>
           </Select></div>
         </div>
       </Modal>
 
-      {/* Calendar Modal */}
-      <Modal open={calDialog} onClose={() => setCalDialog(false)} title="Add Calendar Entry"
-        footer={<><Button variant="outline" onClick={() => setCalDialog(false)}>Cancel</Button><Button onClick={handleAddCalEntry}><Send size={14} style={{ marginRight: '6px' }}/> Add</Button></>}>
+      <Modal open={calDialog} onClose={() => !isSubmitting && setCalDialog(false)} title="Add Calendar Entry"
+        footer={<div style={{ display: 'flex', gap: '8px', width: '100%', justifyContent: 'flex-end' }}><Button variant="outline" onClick={() => setCalDialog(false)} disabled={isSubmitting}>Cancel</Button><Button onClick={handleAddCalEntry} disabled={isSubmitting} style={{ backgroundColor: '#52a447' }}>{isSubmitting ? <><Loader2 size={16} className={styles.spin} style={{ marginRight: '6px' }} /> Adding...</> : <><Send size={14} style={{ marginRight: '6px' }} /> Schedule</>}</Button></div>}>
         <div className={styles.formFields}>
-          <div className={styles.field}><label>Title *</label><Input value={calForm.title} onChange={e => setCalForm(p => ({ ...p, title: e.target.value }))} placeholder="Content title" /></div>
-          <div className={styles.field}><label>Platform</label><Select value={calForm.platform} onChange={e => setCalForm(p => ({ ...p, platform: e.target.value }))}>
+          <div className={styles.field}><label>Title <span style={{ color: 'red' }}>*</span></label><Input value={calForm.title} onChange={e => setCalForm(p => ({ ...p, title: e.target.value }))} placeholder="Content title" disabled={isSubmitting} /></div>
+          <div className={styles.field}><label>Platform</label><Select value={calForm.platform} onChange={e => setCalForm(p => ({ ...p, platform: e.target.value }))} disabled={isSubmitting}>
             <option value="All">All Platforms</option><option value="Instagram">Instagram</option><option value="Facebook">Facebook</option><option value="LinkedIn">LinkedIn</option>
           </Select></div>
-          <div className={styles.field}><label>Date *</label><Input type="date" value={calForm.date} onChange={e => setCalForm(p => ({ ...p, date: e.target.value }))} /></div>
-          <div className={styles.field}><label>Type</label><Select value={calForm.type} onChange={e => setCalForm(p => ({ ...p, type: e.target.value }))}>
+          <div className={styles.field}><label>Date <span style={{ color: 'red' }}>*</span></label><Input type="date" value={calForm.date} onChange={e => setCalForm(p => ({ ...p, date: e.target.value }))} disabled={isSubmitting} /></div>
+          <div className={styles.field}><label>Type</label><Select value={calForm.type} onChange={e => setCalForm(p => ({ ...p, type: e.target.value }))} disabled={isSubmitting}>
             <option value="Post">Post</option><option value="Story">Story</option><option value="Reel">Reel</option><option value="Campaign">Campaign</option>
           </Select></div>
-          <div className={styles.field}><label>Assigned To</label><Input value={calForm.assigned} onChange={e => setCalForm(p => ({ ...p, assigned: e.target.value }))} placeholder="Team member" /></div>
+          <div className={styles.field}><label>Assigned To</label><Input value={calForm.assigned} onChange={e => setCalForm(p => ({ ...p, assigned: e.target.value }))} placeholder="Team member" disabled={isSubmitting} /></div>
         </div>
       </Modal>
 
-      {/* Preview Modal */}
-      <Modal open={!!previewImg} onClose={() => setPreviewImg(null)} title={previewImg?.caption || 'Preview'}
-        footer={<Button variant="outline" onClick={() => setPreviewImg(null)}>Close</Button>}>
-        {previewImg && <img src={previewImg.url || previewImg.imageBase64} alt={previewImg.caption} style={{ width: '100%', borderRadius: '8px', maxHeight: '70vh', objectFit: 'contain' }} />}
+      {/* Image Preview Modal */}
+      <Modal open={!!previewImg} onClose={() => setPreviewImg(null)} title={previewImg?.caption || 'Preview'} footer={<Button variant="outline" onClick={() => setPreviewImg(null)}>Close</Button>}>
+        {previewImg && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '16px', borderRadius: '12px' }}>
+            <img src={previewImg.url || previewImg.imageBase64} alt={previewImg.caption} style={{ width: '100%', borderRadius: '8px', maxHeight: '60vh', objectFit: 'contain' }} />
+            <div style={{ marginTop: '16px', width: '100%', display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '0.9rem' }}>
+              <span>Event: <strong>{previewImg.event}</strong></span>
+              <span>By: {previewImg.uploadedBy}</span>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
 };
 
-export default MediaPRDashboard;  
+export default MediaPRDashboard;

@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, CalendarDays, Users, Bell, LogOut, Plus, Send, MapPin, Clock, Trophy, Star, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { 
+  CalendarDays, Users, Bell, LogOut, Plus, Send, MapPin, 
+  Clock, Star, CheckCircle, Eye, MessageSquare 
+} from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import Modal from '@/components/ui/Modal.jsx';
@@ -9,18 +12,22 @@ import Textarea from '@/components/ui/Textarea.jsx';
 import Select from '@/components/ui/Select.jsx';
 import { events as initialEvents, eventParticipants, eventFeedbacks, notifications as initialNotifications } from '@/data/mockData.js';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
+import { useAuth } from '@/context/AuthContext.jsx';
+import TransferRoleWidget from '@/components/TransferRoleWidget.jsx';
 import styles from './EventManagerDashboard.module.css';
-
-const currentUser = { name: 'Bilal Hassan', role: 'Event Manager' };
 
 const EventManagerDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: currentUser, logout } = useAuth(); // Live user
+  
   const [activeTab, setActiveTab] = useState('events');
   const [eventList, setEventList] = useState(initialEvents);
-  const [notifs] = useState(initialNotifications);
+  const [notifs, setNotifs] = useState(initialNotifications);
   const [participants, setParticipants] = useState(eventParticipants);
   const [feedbacks] = useState(eventFeedbacks);
+  
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Event form
   const [eventDialog, setEventDialog] = useState(false);
@@ -34,6 +41,12 @@ const EventManagerDashboard = () => {
   const [regDialog, setRegDialog] = useState(false);
   const [regForm, setRegForm] = useState({ memberName: '', role: 'Participant' });
   const [regEvent, setRegEvent] = useState(null);
+
+  // Mocking Live Notification Fetch
+  useEffect(() => {
+    // In a real app, this fetches from /api/notifications
+    setUnreadCount(notifs.filter(n => !n.read).length);
+  }, [notifs]);
 
   const upcomingEvents = eventList.filter(e => e.status === 'Upcoming');
   const completedEvents = eventList.filter(e => e.status === 'Completed');
@@ -66,6 +79,7 @@ const EventManagerDashboard = () => {
   };
 
   const handleDelete = (e) => {
+    if(!window.confirm(`Are you sure you want to delete "${e.title}"?`)) return;
     setEventList(prev => prev.filter(ev => ev.id !== e.id));
     toast({ title: 'Event deleted' });
   };
@@ -80,14 +94,12 @@ const EventManagerDashboard = () => {
   };
 
   const getEventParticipants = (eventId) => participants.filter(p => p.eventId === eventId);
-  const getEventFeedbacks = (eventId) => feedbacks.filter(f => f.eventId === eventId);
 
   const tabs = [
     { id: 'events', label: 'My Events', icon: CalendarDays },
     { id: 'participants', label: 'Participants', icon: Users },
     { id: 'feedback', label: 'Feedback', icon: Star },
-    { id: 'timeline', label: 'Timeline', icon: Clock },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'timeline', label: 'Timeline', icon: Clock }
   ];
 
   return (
@@ -95,16 +107,30 @@ const EventManagerDashboard = () => {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.headerLeft}>
-            <div className={styles.headerLogo}><CalendarDays size={20} /></div>
+            <div className={styles.headerLogo}><CalendarDays size={22} /></div>
             <div>
               <h1 className={styles.headerTitle}>Event Manager</h1>
-              <p className={styles.headerSub}>Welcome, {currentUser.name}</p>
+              <p className={styles.headerSub}>Logged in as <strong>{currentUser?.fullName || 'Admin'}</strong></p>
             </div>
           </div>
           <div className={styles.headerRight}>
-            <Badge variant="default">Event Manager</Badge>
-            <Button variant="outline" size="sm" onClick={() => navigate('/notifications')}><Bell size={14} /></Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/login')}><LogOut size={14} /> Logout</Button>
+            <Badge variant="outline" className={styles.hideMobile}>Event Manager Access</Badge>
+            <TransferRoleWidget />
+            
+            {/* ENTERPRISE FIX: Chat Icon */}
+            <button className={styles.iconBtn} onClick={() => navigate('/chat')} title="Messages">
+              <MessageSquare size={20} />
+            </button>
+
+            {/* ENTERPRISE FIX: Notification Icon */}
+            <button className={styles.iconBtn} onClick={() => navigate('/notifications')} title="Notifications">
+              <Bell size={20} />
+              {unreadCount > 0 && <span className={styles.notifBadge}>{unreadCount}</span>}
+            </button>
+
+            <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login'); }} className={styles.logoutBtn}>
+              <LogOut size={16} /> <span className={styles.hideMobile} style={{marginLeft: '6px'}}>Logout</span>
+            </Button>
           </div>
         </div>
       </header>
@@ -113,24 +139,39 @@ const EventManagerDashboard = () => {
         <nav className={styles.tabs}>
           {tabs.map(t => (
             <button key={t.id} className={`${styles.tab} ${activeTab === t.id ? styles.tabActive : ''}`} onClick={() => setActiveTab(t.id)}>
-              <t.icon size={16} /><span>{t.label}</span>
+              <t.icon size={16} style={{ marginRight: '6px' }}/><span>{t.label}</span>
             </button>
           ))}
         </nav>
 
         <div className={styles.content}>
           {activeTab === 'events' && (
-            <div>
+            <div className={styles.fadeEnter}>
               <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Events</h2>
-                <Button size="sm" onClick={openCreate}><Plus size={14} /> Create Event</Button>
+                <div>
+                  <h2 className={styles.sectionTitle}>Event Roster</h2>
+                  <p className={styles.sectionDesc}>Manage upcoming and past society events.</p>
+                </div>
+                <Button onClick={openCreate} className={styles.actionBtn}><Plus size={16} style={{marginRight: '6px'}}/> Create Event</Button>
               </div>
 
               <div className={styles.eventStats}>
-                <div className={styles.eStat}><span className={styles.eStatNum}>{eventList.length}</span><span className={styles.eStatLabel}>Total Events</span></div>
-                <div className={styles.eStat}><span className={styles.eStatNum}>{upcomingEvents.length}</span><span className={styles.eStatLabel}>Upcoming</span></div>
-                <div className={styles.eStat}><span className={styles.eStatNum}>{completedEvents.length}</span><span className={styles.eStatLabel}>Completed</span></div>
-                <div className={styles.eStat}><span className={styles.eStatNum}>{totalParticipants}</span><span className={styles.eStatLabel}>Total Participants</span></div>
+                <div className={styles.eStat}>
+                  <span className={styles.eStatNum} style={{color: '#0f172a'}}>{eventList.length}</span>
+                  <span className={styles.eStatLabel}>Total Events</span>
+                </div>
+                <div className={styles.eStat}>
+                  <span className={styles.eStatNum} style={{color: '#52a447'}}>{upcomingEvents.length}</span>
+                  <span className={styles.eStatLabel}>Upcoming</span>
+                </div>
+                <div className={styles.eStat}>
+                  <span className={styles.eStatNum} style={{color: '#3b82f6'}}>{completedEvents.length}</span>
+                  <span className={styles.eStatLabel}>Completed</span>
+                </div>
+                <div className={styles.eStat}>
+                  <span className={styles.eStatNum} style={{color: '#8b5cf6'}}>{totalParticipants}</span>
+                  <span className={styles.eStatLabel}>Participants</span>
+                </div>
               </div>
 
               <div className={styles.eventGrid}>
@@ -142,19 +183,19 @@ const EventManagerDashboard = () => {
                     </div>
                     <h3 className={styles.eventTitle}>{e.title}</h3>
                     <div className={styles.eventMeta}>
-                      <span><CalendarDays size={12} /> {e.date}</span>
-                      {e.venue && <span><MapPin size={12} /> {e.venue}</span>}
+                      <span><CalendarDays size={14} /> {e.date}</span>
+                      {e.venue && <span><MapPin size={14} /> {e.venue}</span>}
                     </div>
                     <p className={styles.eventDesc}>{e.description}</p>
                     <div className={styles.eventFooter}>
-                      <span className={styles.muted}>Budget: Rs {(e.budget || 0).toLocaleString()}</span>
-                      <span className={styles.muted}>{getEventParticipants(e.id).length}{e.maxParticipants ? `/${e.maxParticipants}` : ''} joined</span>
+                      <span className={styles.mutedInfo}>Budget: Rs {(e.budget || 0).toLocaleString()}</span>
+                      <span className={styles.mutedInfo}>{getEventParticipants(e.id).length}{e.maxParticipants ? `/${e.maxParticipants}` : ''} joined</span>
                     </div>
                     <div className={styles.eventActions}>
-                      <Button variant="outline" size="sm" onClick={() => setViewEvent(e)}><Eye size={13} /> View</Button>
-                      <Button variant="outline" size="sm" onClick={() => openRegister(e)}><Users size={13} /> Register</Button>
-                      <Button variant="outline" size="sm" onClick={() => openEdit(e)}>Edit</Button>
-                      <Button variant="destructive" size="sm" onClick={() => handleDelete(e)}>Delete</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setViewEvent(e)} style={{color: '#52a447'}}><Eye size={14} style={{marginRight: '4px'}}/> View</Button>
+                      <Button variant="ghost" size="sm" onClick={() => openRegister(e)} style={{color: '#3b82f6'}}><Users size={14} style={{marginRight: '4px'}}/> Register</Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(e)} style={{color: '#64748b'}}>Edit</Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(e)} style={{color: '#ef4444'}}>Delete</Button>
                     </div>
                   </div>
                 ))}
@@ -163,7 +204,7 @@ const EventManagerDashboard = () => {
           )}
 
           {activeTab === 'participants' && (
-            <div>
+            <div className={styles.fadeEnter}>
               <h2 className={styles.sectionTitle}>All Participants</h2>
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
@@ -174,11 +215,11 @@ const EventManagerDashboard = () => {
                       return (
                         <tr key={p.id}>
                           <td className={styles.bold}>{p.memberName}</td>
-                          <td className={styles.muted}>{ev ? ev.title : 'Unknown'}</td>
-                          <td><Badge variant="secondary">{p.role}</Badge></td>
+                          <td className={styles.mutedInfo}>{ev ? ev.title : 'Unknown'}</td>
+                          <td><Badge variant="outline">{p.role}</Badge></td>
                           <td>{p.teamwork}/10</td>
                           <td>{p.communication}/10</td>
-                          <td className={styles.bold}>{p.totalScore}</td>
+                          <td className={styles.bold} style={{color: '#52a447'}}>{p.totalScore}</td>
                         </tr>
                       );
                     })}
@@ -189,10 +230,10 @@ const EventManagerDashboard = () => {
           )}
 
           {activeTab === 'feedback' && (
-            <div>
+            <div className={styles.fadeEnter}>
               <h2 className={styles.sectionTitle}>Event Feedback</h2>
               <div className={styles.feedbackStats}>
-                <div className={styles.eStat}><span className={styles.eStatNum}>{avgRating} ⭐</span><span className={styles.eStatLabel}>Avg Rating</span></div>
+                <div className={styles.eStat}><span className={styles.eStatNum} style={{color: '#f59e0b'}}>{avgRating} ⭐</span><span className={styles.eStatLabel}>Avg Rating</span></div>
                 <div className={styles.eStat}><span className={styles.eStatNum}>{feedbacks.length}</span><span className={styles.eStatLabel}>Total Reviews</span></div>
               </div>
               <div className={styles.feedbackGrid}>
@@ -203,7 +244,7 @@ const EventManagerDashboard = () => {
                       <span className={styles.stars}>{'⭐'.repeat(f.rating)}</span>
                     </div>
                     <p className={styles.fbComment}>{f.comment}</p>
-                    <span className={styles.muted}>{f.date}</span>
+                    <span className={styles.mutedInfo}>{f.date}</span>
                   </div>
                 ))}
               </div>
@@ -211,39 +252,21 @@ const EventManagerDashboard = () => {
           )}
 
           {activeTab === 'timeline' && (
-            <div>
+            <div className={styles.fadeEnter}>
               <h2 className={styles.sectionTitle}>Event Timeline</h2>
               <div className={styles.timeline}>
-                {[...eventList].sort((a, b) => a.date.localeCompare(b.date)).map((e, i) => (
+                {[...eventList].sort((a, b) => a.date.localeCompare(b.date)).map(e => (
                   <div key={e.id} className={styles.timelineItem}>
-                    <div className={styles.timelineDot}>
-                      {e.status === 'Completed' ? <CheckCircle size={16} /> : <Clock size={16} />}
+                    <div className={`${styles.timelineDot} ${e.status === 'Completed' ? styles.timelineDotComplete : ''}`}>
+                      {e.status === 'Completed' ? <CheckCircle size={14} /> : <Clock size={14} />}
                     </div>
                     <div className={styles.timelineContent}>
                       <div className={styles.timelineHeader}>
                         <h4 className={styles.timelineTitle}>{e.title}</h4>
                         <Badge variant={e.status === 'Upcoming' ? 'default' : 'secondary'}>{e.status}</Badge>
                       </div>
-                      <p className={styles.muted}>{e.date} {e.venue ? `• ${e.venue}` : ''}</p>
+                      <p className={styles.mutedInfo} style={{margin: '4px 0 8px 0'}}>{e.date} {e.venue ? `• ${e.venue}` : ''}</p>
                       <p className={styles.timelineDesc}>{e.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'notifications' && (
-            <div>
-              <h2 className={styles.sectionTitle}>Notifications</h2>
-              <div className={styles.notifList}>
-                {notifs.map(n => (
-                  <div key={n.id} className={`${styles.notifItem} ${!n.read ? styles.notifUnread : ''}`}>
-                    <div className={styles.notifDot} />
-                    <div className={styles.notifContent}>
-                      <h4 className={styles.notifTitle}>{n.title}</h4>
-                      <p className={styles.muted}>{n.message}</p>
-                      <span className={styles.notifDate}>{n.date}</span>
                     </div>
                   </div>
                 ))}
@@ -253,15 +276,15 @@ const EventManagerDashboard = () => {
         </div>
       </div>
 
-      {/* Create/Edit Event Modal */}
+      {/* MODALS */}
       <Modal open={eventDialog} onClose={() => setEventDialog(false)} title={editingEvent ? 'Edit Event' : 'Create Event'}
-        footer={<><Button variant="outline" onClick={() => setEventDialog(false)}>Cancel</Button><Button onClick={handleSaveEvent}><Send size={14} /> {editingEvent ? 'Update' : 'Create'}</Button></>}>
+        footer={<><Button variant="outline" onClick={() => setEventDialog(false)}>Cancel</Button><Button onClick={handleSaveEvent} style={{backgroundColor: '#52a447'}}><Send size={14} style={{marginRight: '6px'}}/> {editingEvent ? 'Update' : 'Create'}</Button></>}>
         <div className={styles.formScroll}>
           <div className={styles.formFields}>
             <div className={styles.fieldRow}>
               <div className={styles.field}><label>Event Title *</label><Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Tech Summit" /></div>
               <div className={styles.field}><label>Event Type</label><Select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}>
-                <option value="Seminar">Seminar</option><option value="Workshop">Workshop</option><option value="Hackathon">Hackathon</option><option value="Competition">Competition</option><option value="Sports">Sports</option><option value="Cultural">Cultural</option><option value="Social">Social</option><option value="Conference">Conference</option>
+                <option value="Seminar">Seminar</option><option value="Workshop">Workshop</option><option value="Hackathon">Hackathon</option><option value="Competition">Competition</option><option value="Sports">Sports</option><option value="Cultural">Cultural</option>
               </Select></div>
             </div>
             <div className={styles.fieldRow}>
@@ -274,12 +297,6 @@ const EventManagerDashboard = () => {
               <div className={styles.field}><label>Budget (Rs)</label><Input type="number" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))} /></div>
               <div className={styles.field}><label>Max Participants</label><Input type="number" value={form.maxParticipants} onChange={e => setForm(p => ({ ...p, maxParticipants: e.target.value }))} /></div>
             </div>
-            <div className={styles.fieldRow}>
-              <div className={styles.field}><label>Organizer</label><Input value={form.organizer} onChange={e => setForm(p => ({ ...p, organizer: e.target.value }))} placeholder="Organizer name" /></div>
-              <div className={styles.field}><label>Eligibility</label><Select value={form.eligibility} onChange={e => setForm(p => ({ ...p, eligibility: e.target.value }))}>
-                <option value="All Students">All Students</option><option value="Members Only">Members Only</option><option value="Department Specific">Department Specific</option><option value="Open for All">Open for All</option>
-              </Select></div>
-            </div>
             <div className={styles.field}><label>Status</label><Select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
               <option value="Upcoming">Upcoming</option><option value="Ongoing">Ongoing</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option>
             </Select></div>
@@ -287,30 +304,28 @@ const EventManagerDashboard = () => {
         </div>
       </Modal>
 
-      {/* View Event Modal */}
       <Modal open={!!viewEvent} onClose={() => setViewEvent(null)} title={viewEvent?.title || 'Event Details'}
         footer={<Button variant="outline" onClick={() => setViewEvent(null)}>Close</Button>}>
         {viewEvent && (
           <div className={styles.detailGrid}>
-            <div className={styles.detailRow}><span className={styles.detailLabel}>Type</span><span>{viewEvent.type || 'General'}</span></div>
-            <div className={styles.detailRow}><span className={styles.detailLabel}>Date</span><span>{viewEvent.date}</span></div>
-            <div className={styles.detailRow}><span className={styles.detailLabel}>Venue</span><span>{viewEvent.venue || '—'}</span></div>
-            <div className={styles.detailRow}><span className={styles.detailLabel}>Budget</span><span>Rs {(viewEvent.budget || 0).toLocaleString()}</span></div>
-            <div className={styles.detailRow}><span className={styles.detailLabel}>Max Participants</span><span>{viewEvent.maxParticipants || 'Unlimited'}</span></div>
-            <div className={styles.detailRow}><span className={styles.detailLabel}>Participants</span><span>{getEventParticipants(viewEvent.id).length}</span></div>
+            <div className={styles.detailRow}><span className={styles.detailLabel}>Type</span><span className={styles.bold}>{viewEvent.type || 'General'}</span></div>
+            <div className={styles.detailRow}><span className={styles.detailLabel}>Date</span><span className={styles.bold}>{viewEvent.date}</span></div>
+            <div className={styles.detailRow}><span className={styles.detailLabel}>Venue</span><span className={styles.bold}>{viewEvent.venue || '—'}</span></div>
+            <div className={styles.detailRow}><span className={styles.detailLabel}>Budget</span><span className={styles.bold}>Rs {(viewEvent.budget || 0).toLocaleString()}</span></div>
+            <div className={styles.detailRow}><span className={styles.detailLabel}>Max Participants</span><span className={styles.bold}>{viewEvent.maxParticipants || 'Unlimited'}</span></div>
+            <div className={styles.detailRow}><span className={styles.detailLabel}>Participants</span><span className={styles.bold}>{getEventParticipants(viewEvent.id).length}</span></div>
             <div className={styles.detailRow}><span className={styles.detailLabel}>Status</span><Badge variant={viewEvent.status === 'Upcoming' ? 'default' : 'secondary'}>{viewEvent.status}</Badge></div>
-            <div className={styles.detailFull}><span className={styles.detailLabel}>Description</span><p className={styles.muted}>{viewEvent.description}</p></div>
+            <div className={styles.detailFull}><span className={styles.detailLabel}>Description</span><p className={styles.mutedInfo} style={{marginTop: '8px'}}>{viewEvent.description}</p></div>
           </div>
         )}
       </Modal>
 
-      {/* Register Participant Modal */}
       <Modal open={regDialog} onClose={() => setRegDialog(false)} title={`Register for ${regEvent?.title || ''}`}
-        footer={<><Button variant="outline" onClick={() => setRegDialog(false)}>Cancel</Button><Button onClick={handleRegister}><Send size={14} /> Register</Button></>}>
+        footer={<><Button variant="outline" onClick={() => setRegDialog(false)}>Cancel</Button><Button onClick={handleRegister} style={{backgroundColor: '#52a447'}}><Send size={14} style={{marginRight: '6px'}}/> Register</Button></>}>
         <div className={styles.formFields}>
           <div className={styles.field}><label>Participant Name *</label><Input value={regForm.memberName} onChange={e => setRegForm(p => ({ ...p, memberName: e.target.value }))} placeholder="Full name" /></div>
           <div className={styles.field}><label>Role</label><Select value={regForm.role} onChange={e => setRegForm(p => ({ ...p, role: e.target.value }))}>
-            <option value="Participant">Participant</option><option value="Volunteer">Volunteer</option><option value="Speaker">Speaker</option><option value="Judge">Judge</option><option value="Organizer">Organizer</option>
+            <option value="Participant">Participant</option><option value="Volunteer">Volunteer</option><option value="Speaker">Speaker</option><option value="Organizer">Organizer</option>
           </Select></div>
         </div>
       </Modal>

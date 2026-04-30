@@ -2,14 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Bell, LogOut, CalendarDays, Users, BarChart3,
-  ClipboardList, CheckCircle, Eye, FileText, Wallet, Receipt, TrendingUp
+  ClipboardList, FileText, Wallet, Receipt, TrendingUp, MessageSquare, Loader2
 } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Badge from '@/components/ui/Badge.jsx';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
-import { useAuth } from '@/context/AuthContext.jsx'; // 🔴 Real User
+import { useAuth } from '@/context/AuthContext.jsx';
 import TransferRoleWidget from '@/components/TransferRoleWidget.jsx';
 import styles from './JointGSDashboard.module.css';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const JointGSDashboard = () => {
   const [activeTab, setActiveTab] = useState('events');
@@ -27,40 +29,46 @@ const JointGSDashboard = () => {
   const [requests, setRequests] = useState([]);
   const [notifs, setNotifs] = useState([]);
 
-  // 🔴 FETCH EVERYTHING ON LOAD
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
   useEffect(() => {
     const fetchAllData = async () => {
       const headers = { 'Authorization': `Bearer ${sessionStorage.getItem('token')}` };
 
       try {
-        // We fetch all society data concurrently for the ultimate overview
         const [
-          eventsRes, participantsRes, usersRes, fundsRes, 
-          expRes, reqRes, notifRes
+          eventsRes, participantsRes, usersRes, fundsRes,
+          expRes, reqRes, notifRes, chatRes
         ] = await Promise.all([
-          fetch('http://localhost:5000/api/events', { headers }),
-          fetch('http://localhost:5000/api/participants', { headers }).catch(() => ({ ok: false })),
-          fetch('http://localhost:5000/api/admin/users', { headers }), // Or wherever you list all users
-          fetch('http://localhost:5000/api/fund-collections/records', { headers }),
-          fetch('http://localhost:5000/api/expenses/records', { headers }),
-          fetch('http://localhost:5000/api/requests', { headers }), 
-          fetch('http://localhost:5000/api/notifications/all', { headers })
+          fetch(`${API_URL}/events`, { headers }).catch(() => null),
+          fetch(`${API_URL}/participants/all`, { headers }).catch(() => fetch(`${API_URL}/participants`, { headers }).catch(() => null)),
+          fetch(`${API_URL}/admin/users`, { headers }).catch(() => null),
+          fetch(`${API_URL}/fund-collections/records`, { headers }).catch(() => null),
+          fetch(`${API_URL}/expenses/records`, { headers }).catch(() => null),
+          fetch(`${API_URL}/requests`, { headers }).catch(() => null),
+          fetch(`${API_URL}/notifications/all`, { headers }).catch(() => null),
+          fetch(`${API_URL}/messages/my-messages`, { headers }).catch(() => null)
         ]);
 
-        if (eventsRes.ok) setEvents(await eventsRes.json());
-        if (participantsRes.ok) setParticipants(await participantsRes.json());
-        if (usersRes.ok) setMembers(await usersRes.json());
-        if (fundsRes.ok) setFunds(await fundsRes.json());
-        if (expRes.ok) setExpenses(await expRes.json());
-        if (reqRes.ok) setRequests(await reqRes.json());
-        
-        if (notifRes.ok) {
+        if (eventsRes?.ok) setEvents(await eventsRes.json());
+        if (participantsRes?.ok) setParticipants(await participantsRes.json());
+        if (usersRes?.ok) setMembers(await usersRes.json());
+        if (fundsRes?.ok) setFunds(await fundsRes.json());
+        if (expRes?.ok) setExpenses(await expRes.json());
+        if (reqRes?.ok) setRequests(await reqRes.json());
+
+        if (notifRes?.ok) {
           const allNotifs = await notifRes.json();
           setNotifs(allNotifs.filter(n => !n.targetUser || n.targetUser === currentUser?.fullName));
         }
+
+        if (chatRes?.ok) {
+          const msgs = await chatRes.json();
+          const myId = currentUser?._id || currentUser?.id;
+          setUnreadChatCount(msgs.filter(m => !m.read && m.receiver === myId).length);
+        }
       } catch (error) {
-        console.error("Dashboard Sync Error:", error);
-        toast({ title: 'Failed to load society data', variant: 'destructive' });
+        toast({ title: 'Sync Error', description: 'Failed to load society data.', variant: 'destructive' });
       } finally {
         setLoading(false);
       }
@@ -73,15 +81,12 @@ const JointGSDashboard = () => {
   const unreadNotifs = notifs.filter(n => !n.read).length;
   const totalFunds = funds.filter(f => f.status === 'Paid').reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  
+
   const activeMembersCount = members.filter(m => m.isActive || m.status === 'Active').length;
   const pendingRequestsCount = requests.filter(r => r.status === 'Pending').length;
   const upcomingEventsCount = events.filter(e => e.status === 'Upcoming').length;
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const handleLogout = () => { logout(); navigate('/login'); };
 
   const tabs = [
     { key: 'events', label: 'View Events', icon: CalendarDays },
@@ -90,183 +95,198 @@ const JointGSDashboard = () => {
     { key: 'reports', label: 'View Reports', icon: BarChart3 },
   ];
 
+  if (loading) {
+    return (
+      <div className={styles.loadingState}>
+        <Loader2 className={styles.spin} size={48} />
+        <h2>Syncing Workspace...</h2>
+        <p>Gathering society data for Joint General Secretary.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className={styles.page}>
-      <div className={styles.header}>
+    <div className={styles.pageWrap}>
+      <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.headerLeft}>
             <div className={styles.headerLogo}><GraduationCap size={22} /></div>
             <div>
-              <div className={styles.headerTitle}>Joint General Secretary</div>
-              <div className={styles.headerSub}>Welcome, {currentUser?.fullName || 'JGS'} — Verify participation & maintain reports</div>
+              <h1 className={styles.headerTitle}>Joint General Secretary</h1>
+              <p className={styles.headerSub}>Logged in as <strong>{currentUser?.fullName}</strong></p>
             </div>
           </div>
           <div className={styles.headerRight}>
-            <Badge variant="secondary">JGS</Badge>
-            
-            {/* 🔴 TRANSFER ROLE WIDGET */}
+            <Badge variant="outline" className={styles.hideMobile}>JGS Access</Badge>
             <TransferRoleWidget />
 
-            <Button size="sm" variant="outline" onClick={() => navigate('/notifications')} style={{ position: 'relative' }}>
-              <Bell size={16} /> 
-              {unreadNotifs > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50px', padding: '2px 5px', fontSize: '0.65rem', lineHeight: 1, fontWeight: 'bold' }}>{unreadNotifs}</span>}
+            <button className={styles.iconBtn} onClick={() => navigate('/chat')} title="Messages">
+              <MessageSquare size={20} />
+              {unreadChatCount > 0 && <span className={styles.badgeAlert}>{unreadChatCount}</span>}
+            </button>
+
+            <button className={styles.iconBtn} onClick={() => navigate('/notifications')} title="Notifications">
+              <Bell size={20} />
+              {unreadNotifs > 0 && <span className={styles.badgeAlert}>{unreadNotifs}</span>}
+            </button>
+
+            <Button variant="outline" size="sm" onClick={handleLogout} className={styles.logoutBtn}>
+              <LogOut size={16} /> <span className={styles.hideMobile} style={{ marginLeft: '6px' }}>Logout</span>
             </Button>
-            <Button size="sm" variant="outline" onClick={handleLogout}><LogOut size={16} /></Button>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className={styles.container}>
-        <div className={styles.tabs}>
+        <nav className={styles.tabs}>
           {tabs.map(t => (
-            <button key={t.key}
-              className={`${styles.tab} ${activeTab === t.key ? styles.tabActive : ''}`}
-              onClick={() => setActiveTab(t.key)}>
-              <t.icon size={16} /> <span>{t.label}</span>
+            <button key={t.key} className={`${styles.tab} ${activeTab === t.key ? styles.tabActive : ''}`} onClick={() => setActiveTab(t.key)}>
+              <t.icon size={16} style={{ marginRight: '6px' }} /> <span>{t.label}</span>
             </button>
           ))}
-        </div>
+        </nav>
 
         <div className={styles.content}>
-          {loading ? (
-            <p style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Syncing Society Database...</p>
-          ) : (
-            <>
-              {/* --- EVENTS TAB --- */}
-              {activeTab === 'events' && (
-                <>
-                  <h2 className={styles.sectionTitle}>All Society Events</h2>
-                  <p className={styles.roleDesc}>View and monitor all events. Coordinate with the Event Manager for logistics.</p>
-                  <div className={styles.cardGrid}>
-                    {events.length > 0 ? events.map(e => (
-                      <div key={e._id || e.id} className={styles.eventCard}>
-                        <div className={styles.complaintTop}>
-                          <span className={styles.bold}>{e.title}</span>
-                          <Badge variant={e.status === 'Upcoming' ? 'default' : e.status === 'Completed' ? 'success' : 'secondary'}>{e.status || 'Upcoming'}</Badge>
-                        </div>
-                        <div className={styles.annDesc}>{e.description}</div>
-                        <div className={styles.annMeta}>
-                          {e.date ? new Date(e.date).toLocaleDateString() : 'TBD'} · {e.venue || 'Venue TBD'}
-                        </div>
-                      </div>
-                    )) : <p className={styles.muted}>No events created yet.</p>}
+          {activeTab === 'events' && (
+            <div className={styles.fadeEnter}>
+              <h2 className={styles.sectionTitle}>All Society Events</h2>
+              <p className={styles.sectionDesc}>Monitor events and coordinate with the Event Manager.</p>
+              <div className={styles.gridContainer}>
+                {events.length > 0 ? events.map(e => (
+                  <div key={e._id || e.id} className={styles.card}>
+                    <div className={styles.cardHeader}>
+                      <h3 className={styles.cardTitle}>{e.title}</h3>
+                      <Badge variant={e.status === 'Upcoming' ? 'default' : e.status === 'Completed' ? 'success' : 'secondary'}>{e.status || 'Upcoming'}</Badge>
+                    </div>
+                    <div className={styles.cardDesc}>{e.description}</div>
+                    <div className={styles.cardMeta}>
+                      {e.date ? new Date(e.date).toLocaleDateString() : 'TBD'} • {e.venue || 'Venue TBD'}
+                    </div>
                   </div>
-                </>
-              )}
+                )) : <p className={styles.emptyTable}>No events created yet.</p>}
+              </div>
+            </div>
+          )}
 
-              {/* --- PARTICIPATION TAB --- */}
-              {activeTab === 'participation' && (
-                <>
-                  <h2 className={styles.sectionTitle}>Manage & Verify Participation</h2>
-                  <p className={styles.roleDesc}>Review event participants and verify their attendance records.</p>
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead><tr><th>Event</th><th>Participant</th><th>Role/Status</th><th>Date</th></tr></thead>
-                      <tbody>
-                        {participants.length > 0 ? participants.map(p => {
-                          // Find the matching event to display its title
-                          const event = events.find(e => e._id === p.eventId);
-                          return (
-                            <tr key={p._id || p.id}>
-                              <td className={styles.bold}>{event?.title || p.eventTitle || 'Unknown Event'}</td>
-                              <td>{p.studentName || p.memberName}</td>
-                              <td><Badge variant={p.status === 'Approved' ? 'success' : p.status === 'Pending' ? 'warning' : 'secondary'}>{p.status || p.role || 'Participant'}</Badge></td>
-                              <td className={styles.muted}>{p.date ? new Date(p.date).toLocaleDateString() : new Date(p.createdAt).toLocaleDateString()}</td>
-                            </tr>
-                          );
-                        }) : <tr><td colSpan={4} className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>No participation records found.</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+          {activeTab === 'participation' && (
+            <div className={styles.fadeEnter}>
+              <h2 className={styles.sectionTitle}>Manage Participation</h2>
+              <p className={styles.sectionDesc}>Review event participants and verify their attendance.</p>
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead><tr><th>Participant</th><th>Event</th><th>Role/Status</th><th>Date</th></tr></thead>
+                  <tbody>
+                    {participants.length > 0 ? participants.map(p => {
+                      const event = events.find(e => e._id === p.eventId);
+                      return (
+                        <tr key={p._id || p.id}>
+                          <td className={styles.bold}>{p.studentName || p.memberName}</td>
+                          <td className={styles.mutedInfo}>{event?.title || p.eventTitle || 'Unknown Event'}</td>
+                          <td><Badge variant={p.status === 'Approved' ? 'success' : p.status === 'Pending' ? 'warning' : 'secondary'}>{p.status || p.role || 'Participant'}</Badge></td>
+                          <td className={styles.mutedInfo}>{p.date ? new Date(p.date).toLocaleDateString() : new Date(p.createdAt).toLocaleDateString()}</td>
+                        </tr>
+                      );
+                    }) : <tr><td colSpan={4} className={styles.emptyTable}>No participation records found.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-              {/* --- ASSIST GS (OVERVIEW) TAB --- */}
-              {activeTab === 'overview' && (
-                <>
-                  <h2 className={styles.sectionTitle}>Assist General Secretary</h2>
-                  <p className={styles.roleDesc}>Overview of pending items to help the GS manage the society.</p>
-                  <div className={styles.statsGrid}>
-                    <div className={styles.statCard}>
-                      <Users size={20} className={styles.statIconBlue} />
-                      <div className={styles.statVal}>{activeMembersCount}</div>
-                      <div className={styles.statLabel}>Active Members</div>
-                    </div>
-                    <div className={styles.statCard}>
-                      <FileText size={20} className={styles.statIconYellow} />
-                      <div className={styles.statVal}>{pendingRequestsCount}</div>
-                      <div className={styles.statLabel}>Pending Requests</div>
-                    </div>
-                    <div className={styles.statCard}>
-                      <CalendarDays size={20} className={styles.statIconGreen} />
-                      <div className={styles.statVal}>{upcomingEventsCount}</div>
-                      <div className={styles.statLabel}>Upcoming Events</div>
-                    </div>
+          {activeTab === 'overview' && (
+            <div className={styles.fadeEnter}>
+              <h2 className={styles.sectionTitle}>Assist General Secretary</h2>
+              <p className={styles.sectionDesc}>Overview of pending items and society status.</p>
+              <div className={styles.statsGrid}>
+                <div className={`${styles.statCard} ${styles.statBlue}`}>
+                  <div className={styles.statIcon}><Users size={24} /></div>
+                  <div className={styles.statInfo}>
+                    <span className={styles.statLabel}>Active Members</span>
+                    <span className={styles.statValue}>{activeMembersCount}</span>
                   </div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statYellow}`}>
+                  <div className={styles.statIcon}><FileText size={24} /></div>
+                  <div className={styles.statInfo}>
+                    <span className={styles.statLabel}>Pending Requests</span>
+                    <span className={styles.statValue}>{pendingRequestsCount}</span>
+                  </div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statGreen}`}>
+                  <div className={styles.statIcon}><CalendarDays size={24} /></div>
+                  <div className={styles.statInfo}>
+                    <span className={styles.statLabel}>Upcoming Events</span>
+                    <span className={styles.statValue}>{upcomingEventsCount}</span>
+                  </div>
+                </div>
+              </div>
 
-                  <h3 className={styles.subTitle} style={{ marginTop: '30px', marginBottom: '15px' }}>Pending Requests (for GS review)</h3>
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead><tr><th>Title</th><th>By</th><th>Type</th><th>Date</th><th>Status</th></tr></thead>
-                      <tbody>
-                        {requests.filter(r => r.status === 'Pending').length > 0 ? 
-                          requests.filter(r => r.status === 'Pending').map(r => (
-                            <tr key={r._id || r.id}>
-                              <td className={styles.bold}>{r.title}</td>
-                              <td>{r.submittedBy || r.studentName}</td>
-                              <td><Badge variant="outline">{r.type}</Badge></td>
-                              <td className={styles.muted}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : r.date}</td>
-                              <td><Badge variant="warning">{r.status}</Badge></td>
-                            </tr>
-                          )) : <tr><td colSpan={5} className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>No pending requests. Everything is clear!</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+              <h3 className={styles.subTitle}>Pending Requests (Review)</h3>
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead><tr><th>Title</th><th>Submitted By</th><th>Type</th><th>Date</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {requests.filter(r => r.status === 'Pending').length > 0 ?
+                      requests.filter(r => r.status === 'Pending').map(r => (
+                        <tr key={r._id || r.id}>
+                          <td className={styles.bold}>{r.title}</td>
+                          <td className={styles.mutedInfo}>{r.submittedBy || r.studentName}</td>
+                          <td><Badge variant="outline">{r.type}</Badge></td>
+                          <td className={styles.mutedInfo}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : r.date}</td>
+                          <td><Badge variant="warning">{r.status}</Badge></td>
+                        </tr>
+                      )) : <tr><td colSpan={5} className={styles.emptyTable}>No pending requests. Everything is clear!</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-              {/* --- REPORTS TAB --- */}
-              {activeTab === 'reports' && (
-                <>
-                  <h2 className={styles.sectionTitle}>Society Reports</h2>
-                  <p className={styles.roleDesc}>View financial and activity reports to maintain records.</p>
-                  <div className={styles.statsGrid}>
-                    <div className={styles.statCard}>
-                      <Wallet size={20} className={styles.statIconBlue} />
-                      <div className={styles.statVal}>Rs. {totalFunds.toLocaleString()}</div>
-                      <div className={styles.statLabel}>Total Collected Funds</div>
-                    </div>
-                    <div className={styles.statCard}>
-                      <Receipt size={20} className={styles.statIconRed} />
-                      <div className={styles.statVal}>Rs. {totalExpenses.toLocaleString()}</div>
-                      <div className={styles.statLabel}>Total Expenses</div>
-                    </div>
-                    <div className={styles.statCard}>
-                      <TrendingUp size={20} className={styles.statIconGreen} />
-                      <div className={styles.statVal}>Rs. {(totalFunds - totalExpenses).toLocaleString()}</div>
-                      <div className={styles.statLabel}>Available Balance</div>
-                    </div>
+          {activeTab === 'reports' && (
+            <div className={styles.fadeEnter}>
+              <h2 className={styles.sectionTitle}>Society Reports</h2>
+              <p className={styles.sectionDesc}>View financial and registry reports.</p>
+              <div className={styles.statsGrid}>
+                <div className={`${styles.statCard} ${styles.statBlue}`}>
+                  <div className={styles.statIcon}><Wallet size={24} /></div>
+                  <div className={styles.statInfo}>
+                    <span className={styles.statLabel}>Total Collected</span>
+                    <span className={styles.statValue}>Rs. {totalFunds.toLocaleString()}</span>
                   </div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statRed}`}>
+                  <div className={styles.statIcon}><Receipt size={24} /></div>
+                  <div className={styles.statInfo}>
+                    <span className={styles.statLabel}>Total Expenses</span>
+                    <span className={styles.statValue}>Rs. {totalExpenses.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statGreen}`}>
+                  <div className={styles.statIcon}><TrendingUp size={24} /></div>
+                  <div className={styles.statInfo}>
+                    <span className={styles.statLabel}>Available Balance</span>
+                    <span className={styles.statValue}>Rs. {(totalFunds - totalExpenses).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
 
-                  <h3 className={styles.subTitle} style={{ marginTop: '30px', marginBottom: '15px' }}>Member Summary</h3>
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead><tr><th>Name</th><th>Role</th><th>Dept</th><th>Status</th></tr></thead>
-                      <tbody>
-                        {members.length > 0 ? members.map(m => (
-                          <tr key={m._id || m.id}>
-                            <td className={styles.bold}>{m.fullName || m.name}</td>
-                            <td><Badge variant="secondary">{m.role}</Badge></td>
-                            <td>{m.department || 'N/A'}</td>
-                            <td><Badge variant={m.isActive ? 'default' : 'secondary'}>{m.isActive ? 'Active' : 'Pending'}</Badge></td>
-                          </tr>
-                        )) : <tr><td colSpan={4} className={styles.empty} style={{ textAlign: 'center', padding: '20px' }}>No members found.</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </>
+              <h3 className={styles.subTitle}>Member Summary</h3>
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead><tr><th>Name</th><th>Role</th><th>Dept</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {members.length > 0 ? members.map(m => (
+                      <tr key={m._id || m.id}>
+                        <td className={styles.bold}>{m.fullName || m.name}</td>
+                        <td><Badge variant="outline">{m.role}</Badge></td>
+                        <td className={styles.mutedInfo}>{m.department || m.class || 'N/A'}</td>
+                        <td><Badge variant={m.isActive ? 'success' : 'secondary'}>{m.isActive ? 'Active' : 'Pending'}</Badge></td>
+                      </tr>
+                    )) : <tr><td colSpan={4} className={styles.emptyTable}>No members found.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
       </div>

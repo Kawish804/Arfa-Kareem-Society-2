@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Users, Wallet, Receipt, CalendarDays, Megaphone, 
   Settings as SettingsIcon, LogOut, Menu, X, 
   Image as ImageIcon, BarChart3, GraduationCap, 
-  Bell, MessageSquare, ShieldAlert, FileCheck, ClipboardList, ScrollText
+  Bell, MessageSquare, FileCheck, ClipboardList, ScrollText,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useSettings } from '@/context/SettingsContext.jsx';
-import { useAuth } from '@/context/AuthContext.jsx'; // 🔴 1. Imported Auth Context
+import { useAuth } from '@/context/AuthContext.jsx'; 
 import styles from './DashboardLayout.module.css';
 
 const menuItems = [
@@ -30,16 +31,28 @@ const menuItems = [
 ];
 
 const DashboardLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const navigate = useNavigate();
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   
-  // GRAB THE DYNAMIC SETTINGS & REAL USER
+  const navigate = useNavigate();
+  const location = useLocation();
   const { settings } = useSettings(); 
-  const { user, logout } = useAuth(); // 🔴 2. Grab the logged-in user and logout function
+  const { user, logout } = useAuth(); 
 
-  // 🔴 3. Helper function to get initials from the user's name
+  // Auto-close mobile menu on route change
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [location.pathname]);
+
+  // Determine current page title for the breadcrumb
+  const currentRoute = menuItems.find(item => {
+    if (item.exact) return location.pathname === item.path;
+    return location.pathname.startsWith(item.path);
+  });
+  const pageTitle = currentRoute ? currentRoute.label : 'President Panel';
+
   const getInitials = (name) => {
-    if (!name) return 'PR'; // Default 'PR' for President
+    if (!name) return 'PR'; 
     const parts = name.split(' ');
     if (parts.length > 1) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -50,82 +63,117 @@ const DashboardLayout = () => {
   const userInitials = getInitials(user?.fullName);
 
   const handleLogout = () => {
-    logout(); // Actually clear the session
+    logout(); 
     navigate('/login');
   };
 
-  return (
-    <div className={styles.layout}>
-      {/* Sidebar */}
-      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : styles.closed}`}>
-        <div className={styles.sidebarHeader}>
-          <div className={styles.logo}>
-            <GraduationCap size={24} />
+  const SidebarContent = () => (
+    <>
+      <div className={styles.sidebarHeader}>
+        <div className={styles.logoWrap}>
+          <div className={styles.brandIcon}>
+            <GraduationCap size={22} />
           </div>
-          {sidebarOpen && (
-            <div className={styles.brand}>
-              {/* DYNAMIC SOCIETY NAME */}
-              <h2 style={{ margin: 0, fontSize: '1.25rem', lineHeight: '1.2' }}>
-                {settings?.societyName || 'Society'}
-              </h2>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}></p>
+          {(!isDesktopCollapsed || isMobileOpen) && (
+            <div className={styles.brandText}>
+              <h2 className={styles.brandName}>{settings?.societyName || 'Arfa Kareem Society'}</h2>
+              <p className={styles.brandSub}>Management System</p>
             </div>
           )}
         </div>
+      </div>
 
-        <nav className={styles.nav}>
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.exact}
-              className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
-              title={!sidebarOpen ? item.label : ''}
-            >
-              <item.icon size={20} />
-              {sidebarOpen && <span>{item.label}</span>}
-            </NavLink>
-          ))}
-        </nav>
+      <nav className={styles.nav}>
+        <div className={styles.navGroupTitle}>
+          {(!isDesktopCollapsed || isMobileOpen) ? 'MAIN MENU' : '•••'}
+        </div>
+        {menuItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end={item.exact}
+            className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navActive : ''}`}
+            title={isDesktopCollapsed && !isMobileOpen ? item.label : ''}
+          >
+            <item.icon size={20} className={styles.navIcon} />
+            {(!isDesktopCollapsed || isMobileOpen) && <span className={styles.navLabel}>{item.label}</span>}
+          </NavLink>
+        ))}
+      </nav>
+    </>
+  );
+
+  return (
+    <div className={styles.layout}>
+      {/* MOBILE OVERLAY */}
+      {isMobileOpen && (
+        <div className={styles.mobileOverlay} onClick={() => setIsMobileOpen(false)} />
+      )}
+
+      {/* SIDEBAR */}
+      <aside className={`
+        ${styles.sidebar} 
+        ${isDesktopCollapsed ? styles.collapsed : styles.expanded}
+        ${isMobileOpen ? styles.mobileOpen : ''}
+      `}>
+        <SidebarContent />
       </aside>
 
-      {/* Main Content */}
-      <main className={styles.main}>
+      {/* MAIN CONTENT AREA */}
+      <main className={`${styles.main} ${isDesktopCollapsed ? styles.mainExpanded : ''}`}>
         <header className={styles.topbar}>
           <div className={styles.topbarLeft}>
-            <button className={styles.menuBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            {/* Mobile Menu Toggle */}
+            <button className={styles.mobileMenuBtn} onClick={() => setIsMobileOpen(true)}>
+              <Menu size={20} />
             </button>
-            <span className={styles.breadcrumb}>President Panel</span>
+
+            {/* Desktop Collapse Toggle */}
+            <button 
+              className={styles.collapseBtn} 
+              onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
+              title={isDesktopCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isDesktopCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
+            </button>
+
+            {/* Dynamic Breadcrumb */}
+            <div className={styles.breadcrumb}>
+              <span className={styles.breadcrumbMuted}>Dashboard</span>
+              <span className={styles.breadcrumbDivider}>/</span>
+              <span className={styles.breadcrumbActive}>{pageTitle}</span>
+            </div>
           </div>
           
           <div className={styles.topbarRight}>
-            <button className={styles.iconBtn} onClick={() => navigate('/notifications')}><Bell size={20} /></button>
-            <button className={styles.iconBtn} onClick={() => navigate('/chat')}><MessageSquare size={20} /></button>
+            <button className={styles.iconBtn} onClick={() => navigate('/notifications')} title="Notifications">
+              <Bell size={20} />
+              <span className={styles.notifDot}></span>
+            </button>
+            <button className={styles.iconBtn} onClick={() => navigate('/chat')} title="Messenger">
+              <MessageSquare size={20} />
+            </button>
             
-            <div className={styles.profile} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className={styles.profileInfo} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                {/* 🔴 4. Dynamically insert Name and Email */}
-                <span className={styles.profileName} style={{ fontWeight: 600, fontSize: '0.875rem', lineHeight: '1' }}>
-                  {user?.fullName || 'President User'}
-                </span>
-                <span className={styles.profileRole} style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  {user?.email || 'president@society.edu'}
-                </span>
+            <div className={styles.profileDivider}></div>
+
+            <div className={styles.profile}>
+              <div className={styles.profileInfo}>
+                <span className={styles.profileName}>{user?.fullName || 'President'}</span>
+                <span className={styles.profileRole}>{user?.role || 'Admin'}</span>
               </div>
-              {/* 🔴 5. Insert Initials */}
               <div className={styles.avatar}>{userInitials}</div>
             </div>
 
-            {/* 🔴 6. Updated Logout to clear session */}
-            <button className={styles.logoutBtn} onClick={handleLogout}>
+            <button className={styles.logoutBtn} onClick={handleLogout} title="Logout">
               <LogOut size={20} />
             </button>
           </div>
         </header>
 
         <div className={styles.content}>
-          <Outlet />
+          <div className={styles.contentInner}>
+            <Outlet />
+          </div>
         </div>
       </main>
     </div>
