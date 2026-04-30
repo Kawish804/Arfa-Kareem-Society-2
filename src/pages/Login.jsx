@@ -1,11 +1,27 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // ENTERPRISE FIX: Imported Link
 import { GraduationCap, Eye, EyeOff } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import { useAuth } from '@/context/AuthContext.jsx';
 import styles from './Login.module.css';
+
+// ENTERPRISE FIX: Dynamic API URL resolution
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// ENTERPRISE FIX: Clean routing map for O(1) lookups
+const ROLE_ROUTES = {
+  'President': '/dashboard',
+  'General Secretary': '/gs-dashboard',
+  'Joint General Secretary': '/joint-gs-dashboard',
+  'Finance Head': '/finance-dashboard',
+  'Assistant Finance Head': '/assistant-finance-dashboard',
+  'Media Manager': '/media-pr-dashboard',
+  'Co-Media Manager': '/co-media-dashboard',
+  'Class Representative': '/cr-dashboard',
+  'Student': '/student'
+};
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -26,7 +42,7 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -36,7 +52,7 @@ const Login = () => {
 
       if (response.ok) {
         // Guarantee user roles is handled as an array
-        const userRoles = Array.isArray(data.user.role) ? data.user.role : [data.user.role || 'Class Representative'];
+        const userRoles = Array.isArray(data.user.role) ? data.user.role : [data.user.role || 'Student'];
 
         sessionStorage.setItem('token', data.token);
         sessionStorage.setItem('userRole', JSON.stringify(userRoles)); 
@@ -44,26 +60,10 @@ const Login = () => {
         
         toast({ title: 'Login Successful', description: `Welcome back, ${data.user.fullName}!` });
 
-        // 🔴 STRICT ROUTING: ONLY checks against the 8 official roles
-        if (userRoles.includes('President')) {
-          navigate('/dashboard');
-        } else if (userRoles.includes('General Secretary')) {
-          navigate('/gs-dashboard');
-        } else if (userRoles.includes('Joint General Secretary')) {
-          navigate('/joint-gs-dashboard');
-        } else if (userRoles.includes('Finance Head')) {
-          navigate('/finance-dashboard');
-        } else if (userRoles.includes('Assistant Finance Head')) {
-          navigate('/assistant-finance-dashboard');
-        } else if (userRoles.includes('Media Manager')) {
-          navigate('/media-pr-dashboard');
-        } else if (userRoles.includes('Co-Media Manager')) {
-          navigate('/co-media-dashboard');
-        } else if (userRoles.includes('Class Representative')) {
-          navigate('/cr-dashboard');
-        } else {
-          navigate('/student'); // Ultimate fallback just in case
-        }
+        // STRICT ROUTING
+        const primaryRole = userRoles[0];
+        const targetRoute = ROLE_ROUTES[primaryRole] || '/student';
+        navigate(targetRoute);
         
       } else {
         toast({ title: 'Login Failed', description: data.message || 'Invalid credentials', variant: 'destructive' });
@@ -83,6 +83,7 @@ const Login = () => {
           <h1 className={styles.title}>Welcome Back</h1>
           <p className={styles.subtitle}>Sign in to Arfa Kareem Society Management System</p>
         </div>
+        
         <form onSubmit={handleLogin} className={styles.form}>
           <div className={styles.field}>
             <label className={styles.label}>Email</label>
@@ -97,11 +98,26 @@ const Login = () => {
               </button>
             </div>
           </div>
+          
           <Button type="submit" className={styles.submitBtn} disabled={loading}>
             {loading ? 'Verifying...' : 'Sign In'}
           </Button>
-          <p className={styles.forgot}><span className={styles.forgotLink}>Forgot password?</span></p>
+
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+            <span className={styles.forgotLink} style={{ cursor: 'pointer', fontSize: '0.875rem' }}>
+              Forgot password?
+            </span>
+          </div>
         </form>
+
+        {/* ENTERPRISE FIX: Accessible navigation link back to Signup */}
+        <div className={styles.footer} style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e2e8f0', textAlign: 'center', fontSize: '0.875rem' }}>
+          <span style={{ color: '#64748b' }}>Don't have an account? </span>
+          <Link to="/signup" className={styles.link} style={{ textDecoration: 'none', fontWeight: '500' }}>
+            Sign up here
+          </Link>
+        </div>
+        
       </div>
     </div>
   );

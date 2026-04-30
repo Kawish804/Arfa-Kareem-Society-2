@@ -1,13 +1,186 @@
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 24px; }
-@media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); transition: box-shadow 0.3s; }
-.card:hover { box-shadow: var(--shadow-md); }
-.cardTop { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
-.cardTitle { font-size: 1.0625rem; font-weight: 600; }
-.cardBtns { display: flex; gap: 2px; flex-shrink: 0; margin-left: 8px; }
-.cardDesc { font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
-.cardFooter { display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-light); }
-.cardFooter span { display: flex; align-items: center; gap: 4px; }
-.formFields { display: flex; flex-direction: column; gap: 16px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field label { font-size: 0.8125rem; font-weight: 500; color: var(--text); }
+.pageWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.grid { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); 
+  gap: 24px; 
+}
+
+.card { 
+  background: var(--card); 
+  border: 1px solid var(--border); 
+  border-radius: 12px; 
+  padding: 24px; 
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease; 
+}
+
+.card:hover { 
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06); 
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+}
+
+.cardTop { 
+  display: flex; 
+  align-items: flex-start; 
+  justify-content: space-between; 
+  margin-bottom: 16px; 
+  gap: 12px;
+}
+
+.titleWrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+}
+
+.iconBox {
+  background: var(--primary-light);
+  color: var(--primary);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cardTitle { 
+  font-size: 1.125rem; 
+  font-weight: 700; 
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.cardBtns { 
+  display: flex; 
+  gap: 4px; 
+  flex-shrink: 0; 
+}
+
+.actionBtn {
+  color: #64748b;
+  padding: 6px;
+  height: auto;
+}
+
+.actionBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.deleteBtn:hover {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.cardBody {
+  flex: 1;
+}
+
+.cardDesc { 
+  font-size: 0.9rem; 
+  color: #475569; 
+  line-height: 1.6; 
+  margin: 0 0 20px 0; 
+  white-space: pre-wrap;
+}
+
+.cardFooter { 
+  display: flex; 
+  align-items: center; 
+  justify-content: flex-start; 
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.metaBadge { 
+  display: flex; 
+  align-items: center; 
+  gap: 6px; 
+  font-size: 0.75rem; 
+  font-weight: 500;
+  color: #64748b; 
+  background: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.formFields { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 20px; 
+}
+
+.field { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+}
+
+.field label { 
+  font-size: 0.85rem; 
+  font-weight: 600; 
+  color: #0f172a; 
+}
+
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #64748b;
+  gap: 12px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 80px 20px;
+  background: var(--card);
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  color: #64748b;
+}
+
+.emptyIcon {
+  color: #cbd5e1;
+  margin-bottom: 16px;
+}
+
+.emptyState h3 {
+  margin: 0 0 8px 0;
+  color: #0f172a;
+  font-size: 1.25rem;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) { 
+  .grid { grid-template-columns: 1fr; } 
+}

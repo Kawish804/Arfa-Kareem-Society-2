@@ -4,7 +4,7 @@ import {
   GraduationCap, CalendarDays, Megaphone, Image, Send, Users, LogOut,
   Heart, AlertTriangle, DollarSign, Clock, Trophy, BookOpen,
   Bell, Search, ChevronRight, Eye, UserPlus, User, FileText,
-  CheckCircle, Menu, Home
+  CheckCircle, Menu, Home, MessageCircle // 🔴 Added MessageCircle import
 } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
@@ -17,6 +17,7 @@ import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import { useAuth } from '@/context/AuthContext.jsx';
 import styles from './StudentPortal.module.css';
 
+// 🔴 Added Messages to the sidebar
 const sidebarItems = [
   { id: 'overview', label: 'Overview', icon: Home },
   { id: 'profile', label: 'My Profile', icon: User },
@@ -25,6 +26,7 @@ const sidebarItems = [
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'gallery', label: 'Gallery', icon: Image },
+  { id: 'chat', label: 'Messages', icon: MessageCircle }, 
 ];
 
 const StudentPortal = () => {
@@ -41,7 +43,8 @@ const StudentPortal = () => {
   const [dbAnnouncements, setDbAnnouncements] = useState([]);
   const [dbNotifications, setDbNotifications] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
-  const [myParticipations, setMyParticipations] = useState([]); // Tracks statuses
+  const [myParticipations, setMyParticipations] = useState([]);
+  const [requestedEventIds, setRequestedEventIds] = useState([]); // Fixed missing state
 
   // Modals
   const [requestOpen, setRequestOpen] = useState(false);
@@ -67,7 +70,7 @@ const StudentPortal = () => {
           fetch('http://localhost:5000/api/announcements', { headers }),
           fetch(`http://localhost:5000/api/requests/my-requests/${user.email}`, { headers }),
           fetch('http://localhost:5000/api/participants/all', { headers }),
-          fetch('http://localhost:5000/api/notifications', { headers }) // Ensure this route exists!
+          fetch('http://localhost:5000/api/notifications', { headers }) 
         ]);
 
         if (evRes.ok) setDbEvents(await evRes.json());
@@ -81,7 +84,6 @@ const StudentPortal = () => {
 
         if (notifRes.ok) {
           const allNotifs = await notifRes.json();
-          // 🔴 Only show notifications meant for EVERYONE, or meant specifically for THIS user
           setDbNotifications(allNotifs.filter(n => !n.targetUser || n.targetUser === user.fullName));
         }
 
@@ -100,14 +102,13 @@ const StudentPortal = () => {
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   // --- 2. SUBMIT EVENT PARTICIPATION REQUEST ---
-  // --- 2. SUBMIT EVENT PARTICIPATION REQUEST ---
   const handleParticipateSubmit = async () => {
     if (!participateForm.name) { toast({ title: 'Name is required', variant: 'destructive' }); return; }
 
     try {
       const payload = {
         studentName: participateForm.name,
-        email: user?.email, // 🔴 THE FIX: This was missing! The DB needs this to save.
+        email: user?.email, 
         rollNo: user?.rollNo || 'N/A',
         department: user?.department || 'N/A',
         contact: user?.phone || 'N/A',
@@ -129,7 +130,7 @@ const StudentPortal = () => {
         const newPart = await res.json();
         toast({ title: 'Request Sent!', description: `Your request to join ${participateEvent.title} has been submitted.` });
         setMyParticipations(prev => [...prev, newPart]);
-        setRequestedEventIds(prev => [...prev, participateEvent._id]); // Disable button
+        setRequestedEventIds(prev => [...prev, participateEvent._id]); 
         setParticipateOpen(false);
       } else {
         const errorData = await res.json();
@@ -166,7 +167,6 @@ const StudentPortal = () => {
     }
   };
 
-  // 🔴 NEW: MARK NOTIFICATION AS READ
   const handleMarkAsRead = async (id) => {
     try {
       await fetch(`http://localhost:5000/api/notifications/${id}/read`, { method: 'PUT' });
@@ -196,7 +196,15 @@ const StudentPortal = () => {
           <button
             key={item.id}
             className={`${styles.navItem} ${activeSection === item.id ? styles.navActive : ''}`}
-            onClick={() => { setActiveSection(item.id); setMobileOpen(false); }}
+            onClick={() => { 
+              // 🔴 If it's the chat button, navigate away entirely!
+              if (item.id === 'chat') {
+                navigate('/chat');
+              } else {
+                setActiveSection(item.id); 
+                setMobileOpen(false); 
+              }
+            }}
           >
             <item.icon size={18} />
             <span>{item.label}</span>
@@ -231,6 +239,16 @@ const StudentPortal = () => {
               <Search size={16} />
               <input placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
+            
+            {/* 🔴 CHAT ICON IN NAVBAR */}
+            <button 
+              onClick={() => navigate('/chat')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', padding: '0 10px' }}
+              title="Messages"
+            >
+              <MessageCircle size={20} />
+            </button>
+
             <div className={styles.userChip}>
               <div className={styles.avatar}>{user?.fullName?.charAt(0) || 'U'}</div>
               <div className={styles.userInfo}>
@@ -261,7 +279,7 @@ const StudentPortal = () => {
               <div className={styles.quickGrid}>
                 <button className={styles.quickCard} onClick={() => setRequestOpen(true)}><div className={styles.quickIcon} style={{ background: 'var(--secondary)' }}><Send size={20} /></div><span>Submit Request</span></button>
                 <button className={styles.quickCard} onClick={() => setActiveSection('events')}><div className={styles.quickIcon} style={{ background: 'hsl(160, 84%, 39%)' }}><Users size={20} /></div><span>Join Event</span></button>
-                <button className={styles.quickCard} onClick={() => setFundOpen(true)}><div className={styles.quickIcon} style={{ background: 'hsl(45, 93%, 47%)' }}><DollarSign size={20} /></div><span>Fund Appeal</span></button>
+                <button className={styles.quickCard} onClick={() => navigate('/chat')}><div className={styles.quickIcon} style={{ background: '#3b82f6' }}><MessageCircle size={20} /></div><span>Messages</span></button>
                 <button className={styles.quickCard} onClick={() => setReportOpen(true)}><div className={styles.quickIcon} style={{ background: 'var(--destructive)' }}><AlertTriangle size={20} /></div><span>Report Issue</span></button>
               </div>
 
@@ -350,10 +368,7 @@ const StudentPortal = () => {
               <div className={styles.sectionHeader}><h2>Upcoming Events</h2></div>
               <div className={styles.eventGrid}>
                 {upcomingEvents.map(e => {
-                  // 🔴 THE BUTTON FIX: Find if the user has a request for this event
                   const userParticipation = myParticipations.find(p => p.eventId === e._id);
-
-                  // If it's rejected, it's like they never applied (button resets!)
                   const isRejected = userParticipation?.status === 'Rejected';
                   const hasActiveRequest = userParticipation && !isRejected;
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // ENTERPRISE FIX: Imported Link for semantic routing
 import { GraduationCap, Eye, EyeOff, UserPlus, CheckCircle, ArrowLeft, KeyRound, AlertCircle } from 'lucide-react';
 import Button from '@/components/ui/Button.jsx';
 import Input from '@/components/ui/Input.jsx';
@@ -7,6 +7,8 @@ import Select from '@/components/ui/Select.jsx';
 import Textarea from '@/components/ui/Textarea.jsx';
 import { useToast } from '@/components/Toast/ToastProvider.jsx';
 import styles from './Signup.module.css';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -25,7 +27,7 @@ const Signup = () => {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/auth/available-roles')
+    fetch(`${API_URL}/auth/available-roles`)
       .then(res => res.json())
       .then(data => setAvailableRoles(data))
       .catch(err => console.error("Failed to fetch roles"));
@@ -70,7 +72,7 @@ const Signup = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/signup', {
+      const response = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
@@ -109,7 +111,7 @@ const Signup = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/activate', {
+      const response = await fetch(`${API_URL}/auth/activate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email, membershipId: membershipId })
@@ -135,7 +137,7 @@ const Signup = () => {
     if (phase === 'manual' || phase === 'verify') {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`http://localhost:5000/api/auth/status/${form.email}`);
+          const res = await fetch(`${API_URL}/auth/status/${form.email}`);
           const data = await res.json();
 
           if (res.status === 404) {
@@ -169,6 +171,7 @@ const Signup = () => {
             <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '5px' }}>Please keep this page open or contact the Society President. This screen will update automatically once you are approved.</p>
           </div>
           <div className={styles.successBtns}>
+            {/* Imperative routing remains on buttons */}
             <Button variant="outline" onClick={() => navigate('/')}>Back to Home</Button>
           </div>
         </div>
@@ -270,7 +273,6 @@ const Signup = () => {
             <label className={styles.label}>Requested Role *</label>
             <Select value={form.role} onChange={e => set('role', e.target.value)}>
               <option value="">Select your role</option>
-              {/* DYNAMICALLY MAP OVER ROLES! */}
               {availableRoles.map(role => (
                 <option key={role} value={role}>{role}</option>
               ))}
@@ -343,12 +345,17 @@ const Signup = () => {
           </Button>
         </form>
 
+        {/* ENTERPRISE FIX: Used React Router <Link> elements for accessible text navigation */}
         <div className={styles.footer}>
           <span>Already a member?</span>
-          <span className={styles.link} onClick={() => navigate('/login')}>Login here</span>
+          <Link to="/login" className={styles.link} style={{ textDecoration: 'none' }}>
+            Login here
+          </Link>
         </div>
         <div className={styles.backRow}>
-          <span className={styles.link} onClick={() => navigate('/')}><ArrowLeft size={14} /> Back to Home</span>
+          <Link to="/" className={styles.link} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <ArrowLeft size={14} /> Back to Home
+          </Link>
         </div>
       </div>
     </div>

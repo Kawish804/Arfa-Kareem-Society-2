@@ -1,25 +1,26 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/User'); // Import User model
 
-const authMiddleware = (req, res, next) => {
-    // 1. Get the token from the frontend's request header
-    const token = req.header('Authorization')?.split(' ')[1]; // Expects "Bearer <token>"
-
-    // 2. If no token, deny access BEFORE it hits the controller
-    if (!token) {
-        return res.status(401).json({ message: "No token, authorization denied" });
-    }
-
+const authMiddleware = async (req, res, next) => {
     try {
-        // 3. Decode the token using your secret key
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_super_secret_key_change_me_later');
+        const token = req.header('Authorization')?.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ message: "No token, authorization denied." });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // 4. Attach the decoded user data (department, semester, etc.) to req.user
-        req.user = decoded; 
-        
-        // 5. Move to the next function (the controller)
+        // ENTERPRISE FIX: Ensure the user hasn't been deleted from the DB
+        const userStillExists = await User.findById(decoded.id).select('-password');
+        if (!userStillExists) {
+            return res.status(401).json({ message: "User no longer exists. Authorization denied." });
+        }
+
+        req.user = userStillExists; 
         next();
     } catch (error) {
-        res.status(401).json({ message: "Token is not valid" });
+        res.status(401).json({ message: "Token is invalid or expired." });
     }
 };
 

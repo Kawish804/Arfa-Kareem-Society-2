@@ -25,6 +25,7 @@ const societyRoutes = require('./routes/societyRoutes');
 const activityRoutes = require('./routes/activityRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const contributionRoutes = require('./routes/contributionRoutes');
+const messageRoutes = require('./routes/messageRoutes');
 
 const app = express();
 
@@ -100,6 +101,7 @@ app.use('/api/gallery', galleryRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/contributions', contributionRoutes);
+app.use('/api/messages', messageRoutes);
 // 🔴 MOUNTED BOTH STUDENT ROUTES TO THE SAME BASE PATH
 app.use('/api/students', studentRoutes); 
 app.use('/api/students', studentFundRoutes); 

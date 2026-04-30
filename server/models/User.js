@@ -1,14 +1,20 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    fullName: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    fullName: { type: String, required: true, trim: true },
+    email: { 
+        type: String, 
+        required: true, 
+        unique: true, 
+        lowercase: true, 
+        trim: true,
+        index: true // Speeds up login/signup queries
+    },
     phone: { type: String, required: true },
     password: { type: String, required: true },
     role: { 
         type: [String], 
         required: true,
-        // 🔴 The definitive, strict list of roles
         enum: [
             'President', 
             'General Secretary', 
@@ -21,13 +27,11 @@ const userSchema = new mongoose.Schema({
             'Student'
         ]
     },
-    
     department: { type: String },
     semester: { type: String },
     rollNo: { type: String },
     timing: { type: String },
     batch: { type: String }, 
-    
     reason: { type: String },
     isActive: { type: Boolean, default: false },
     isApproved: { type: Boolean, default: false },
